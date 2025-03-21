@@ -9,7 +9,7 @@ import server.server.impl.NettyRpcServer;
 public class TestServer {
     public static void main(String[] args) {
         UserService userService = new UserServiceImpl();
-        int port = 9999;
+        int port = 9998;
         String host = "127.0.0.1";
 
         ServiceProvider serviceProvider = new ServiceProvider(host, port);

@@ -3,12 +3,14 @@
  * @Date: 2025-03-19 19:02:55
  * @LastEditTime: 2025-03-21 16:48:43
  * @LastEditors: weihua hu
- * @Description: 
+ * @Description:
  */
 package client.serverCenter.impl;
 
 import client.cache.ServiceCache;
 import client.serverCenter.ServiceCenter;
+import client.serverCenter.balance.LoadBalance;
+import client.serverCenter.balance.impl.RoundLoadBalance;
 import client.serverCenter.watch.WatchZk;
 import org.apache.curator.RetryPolicy;
 import org.apache.curator.framework.CuratorFramework;
@@ -26,6 +28,8 @@ public class ZkServiceCenter implements ServiceCenter {
     private ServiceCache cache;
 
     private WatchZk watcher;
+
+    private LoadBalance loadBalance;
 
     //负责zookeeper客户端的初始化，并与zookeeper服务端进行连接
     public ZkServiceCenter() {
@@ -45,17 +49,29 @@ public class ZkServiceCenter implements ServiceCenter {
 
         this.watcher = new WatchZk(client, cache);
 
+        this.loadBalance = new RoundLoadBalance();
+
         watcher.watchToUpdate(ROOT_PATH);
     }
 
     //根据服务名（接口名）返回地址
     @Override
     public InetSocketAddress serviceDiscovery(String serviceName) {
+        /*
+            1、从本地缓存中那地址列表
+            2、本地拿不到在去zookeeper server 去拿
+            3、然后负载均衡算法做处理
+            4、解析string address
+         */
+
+        List<String> addressList = cache.getServcieFromCache(serviceName);
+
         try {
-            List<String> strings = client.getChildren().forPath("/" + serviceName);
-            // 这里默认用的第一个，后面加负载均衡
-            String string = strings.get(0);
-            return parseAddress(string);
+            if (addressList == null) {
+                addressList = client.getChildren().forPath("/" + serviceName);
+            }
+            String address = loadBalance.balance(addressList);
+            return parseAddress(address);
         } catch (Exception e) {
             e.printStackTrace();
         }
