@@ -17,6 +17,7 @@ import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.HttpVersion;
 import lombok.AllArgsConstructor;
 import server.provider.ServiceProvider;
+import server.rateLimit.RateLimit;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
@@ -80,9 +81,7 @@ public class NettyServerHandler extends SimpleChannelInboundHandler<RpcRequest> 
         System.out.println(request.toString());
         if ("/health".equals(request.getMethodName())) {
 
-            FullHttpResponse response = new DefaultFullHttpResponse(
-                    HttpVersion.HTTP_1_1,
-                    HttpResponseStatus.OK);
+            FullHttpResponse response = new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.OK);
             ctx.writeAndFlush(response);
             return;
         }
@@ -102,6 +101,14 @@ public class NettyServerHandler extends SimpleChannelInboundHandler<RpcRequest> 
 
         // 得到服务名
         String interfaceName = rpcRequest.getInterfaceName();
+
+        RateLimit rateLimit = serviceProvider.getRateLimitProvider().getRateLimit(interfaceName);
+
+        if (!rateLimit.getToken()) {
+            System.out.println(interfaceName + "被限流");
+            return RpcResponse.fail();
+        }
+
         // 得到服务端相应服务实现类
         Object service = serviceProvider.getService(interfaceName);
         // 反射调用方法
