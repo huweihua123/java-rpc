@@ -1,11 +1,11 @@
 package com.weihua.server.serviceCenter.impl;
 
+import com.weihua.server.serviceCenter.ServiceRegister;
 import org.apache.curator.RetryPolicy;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.ExponentialBackoffRetry;
 import org.apache.zookeeper.CreateMode;
-import server.serviceCenter.ServiceRegister;
 
 import java.net.InetSocketAddress;
 

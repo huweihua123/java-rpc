@@ -1,6 +1,7 @@
 package com.weihua.server.rateLimit.impl;
 
-import server.rateLimit.RateLimit;
+
+import com.weihua.server.rateLimit.RateLimit;
 
 public class TokenBucketRateLimitImpl implements RateLimit {
     // 令牌产生间隔（毫秒）

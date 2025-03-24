@@ -1,8 +1,8 @@
 package com.weihua.server.provider;
 
-import server.rateLimit.provider.RateLimitProvider;
-import server.serviceCenter.ServiceRegister;
-import server.serviceCenter.impl.ZkServiceRegisterImpl;
+import com.weihua.server.rateLimit.provider.RateLimitProvider;
+import com.weihua.server.serviceCenter.ServiceRegister;
+import com.weihua.server.serviceCenter.impl.ZkServiceRegisterImpl;
 
 import java.net.InetSocketAddress;
 import java.util.HashMap;

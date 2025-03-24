@@ -1,5 +1,7 @@
 package com.weihua.server.netty.nettyInitialzer;
 
+import com.weihua.server.netty.handler.NettyServerHandler;
+import com.weihua.server.provider.ServiceProvider;
 import io.netty.channel.ChannelInitializer;
 import io.netty.channel.ChannelPipeline;
 import io.netty.channel.socket.SocketChannel;
@@ -8,8 +10,6 @@ import io.netty.handler.codec.LengthFieldPrepender;
 import io.netty.handler.codec.serialization.ClassResolver;
 import io.netty.handler.codec.serialization.ObjectDecoder;
 import io.netty.handler.codec.serialization.ObjectEncoder;
-import server.netty.handler.NettyServerHandler;
-import server.provider.ServiceProvider;
 
 public class NettyServerInitializer extends ChannelInitializer<SocketChannel> {
     private ServiceProvider serviceProvider;

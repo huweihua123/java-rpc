@@ -1,7 +1,8 @@
 package com.weihua.server.rateLimit.provider;
 
-import server.rateLimit.RateLimit;
-import server.rateLimit.impl.TokenBucketRateLimitImpl;
+
+import com.weihua.server.rateLimit.RateLimit;
+import com.weihua.server.rateLimit.impl.TokenBucketRateLimitImpl;
 
 import java.util.HashMap;
 import java.util.Map;

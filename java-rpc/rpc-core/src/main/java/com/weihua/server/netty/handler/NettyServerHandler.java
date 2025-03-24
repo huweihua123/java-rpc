@@ -7,6 +7,8 @@
  */
 package com.weihua.server.netty.handler;
 
+import com.weihua.server.provider.ServiceProvider;
+import com.weihua.server.rateLimit.RateLimit;
 import common.message.RpcRequest;
 import common.message.RpcResponse;
 import io.netty.channel.ChannelHandlerContext;
@@ -16,60 +18,9 @@ import io.netty.handler.codec.http.FullHttpResponse;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.HttpVersion;
 import lombok.AllArgsConstructor;
-import server.provider.ServiceProvider;
-import server.rateLimit.RateLimit;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
-
-//
-//public class NettyServerHandler extends SimpleChannelInboundHandler<RpcRequest> {
-//
-//    private ServiceProvider serviceProvider;
-//
-//    public NettyServerHandler(ServiceProvider serviceProvider) {
-//        this.serviceProvider = serviceProvider;
-//    }
-//
-//    @Override
-//    protected void channelRead0(ChannelHandlerContext ctx, RpcRequest request) throws Exception {
-//        System.out.println("处理tcp");
-//        System.out.println(request.toString());
-//
-//        if ("/health".equals(request.getMethodName())) {
-//
-//            FullHttpResponse response = new DefaultFullHttpResponse(
-//                    HttpVersion.HTTP_1_1,
-//                    HttpResponseStatus.OK);
-//            ctx.writeAndFlush(response);
-//            return;
-//        }
-//
-//        RpcResponse response = getResponse(request);
-//        ctx.writeAndFlush(response);
-//        ctx.close();
-//
-//    }
-//
-//    @Override
-//    public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
-//        cause.printStackTrace();
-//        ctx.close();
-//    }
-//
-//    public RpcResponse getResponse(RpcRequest request) {
-//        Object service = serviceProvider.getService(request.getInterfaceName());
-//        Method method = null;
-//        try {
-//            method = Class.forName(request.getInterfaceName()).getMethod(request.getMethodName(), request.getParamTypes());
-//            Object data = method.invoke(service, request.getParams());
-//            return RpcResponse.success(data);
-//        } catch (Exception e) {
-//            return RpcResponse.fail();
-//        }
-//
-//    }
-//}
 @AllArgsConstructor
 public class NettyServerHandler extends SimpleChannelInboundHandler<RpcRequest> {
     private ServiceProvider serviceProvider;
