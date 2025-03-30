@@ -1,112 +1,107 @@
-<!--
- * @Author: weihua hu
- * @Date: 2025-03-23 23:34:16
- * @LastEditTime: 2025-03-23 23:37:01
- * @LastEditors: weihua hu
- * @Description: 
--->
 # Java-RPC 框架
 
 一个基于Netty和ZooKeeper的轻量级RPC框架，实现了服务注册发现、负载均衡、限流、熔断和重试等高可用特性。
 
-## 项目特性
+## 项目结构
 
+```
+java-rpc/
+├── rpc-api         # 服务接口定义和实体类
+├── rpc-common      # 通用工具和序列化模块
+├── rpc-core        # 框架核心功能实现
+├── rpc-consumer    # 服务消费者示例
+└── rpc-provider    # 服务提供者示例
+```
+
+## 核心特性
+
+- **高性能网络通信**：基于Netty实现的高性能网络通信层
 - **服务注册与发现**：基于ZooKeeper实现服务的注册与动态发现
-- **负载均衡**：支持轮询(Round Robin)和随机(Random)两种负载均衡策略
+- **多种负载均衡**：支持一致性哈希、轮询(Round Robin)和随机(Random)三种负载均衡策略
 - **服务限流**：基于令牌桶算法的接口级别限流保护
-- **熔断降级**：支持熔断器模式，防止故障扩散
+- **熔断降级**：三态熔断器(关闭、开启、半开)实现服务保护
 - **请求重试**：基于Guava Retry实现的失败重试机制
-- **高效通信**：使用Netty作为网络通信框架，支持高并发
-- **服务监控**：实时监听服务变更，自动刷新本地缓存
+- **本地服务缓存**：客户端缓存服务地址，提升性能
+- **服务变更监听**：实时监听服务变更，自动刷新本地缓存
 
-## 架构设计
+## 技术架构
 
-![RPC架构图](docs/images/architecture.png)
+### 通信框架
 
-### 核心模块
+- 基于Netty实现高性能的RPC通信
+- 支持长连接复用，提高通信效率
+- 自定义编解码器，解决TCP粘包拆包问题
 
-- **服务提供者(Provider)**：注册并提供服务的一方
-- **服务消费者(Consumer)**：发现并调用远程服务的一方
-- **注册中心(Registry)**：基于ZooKeeper的服务注册与发现中心
-- **负载均衡(LoadBalance)**：在多个服务提供者之间进行负载分配
-- **熔断器(CircuitBreaker)**：监控调用状态，必要时进行熔断保护
-- **限流器(RateLimit)**：控制服务访问频率，避免过载
+### 服务治理
+
+- **服务注册**：服务启动时自动注册到ZooKeeper
+- **服务发现**：基于ZooKeeper的服务实时发现
+- **服务监听**：监听服务变更，保持地址列表最新
+
+### 负载均衡
+
+框架支持多种负载均衡策略：
+
+1. **一致性哈希(Consistency Hash)**：相同请求映射到相同服务提供者，提供会话粘性
+2. **轮询(Round Robin)**：按顺序分配请求到各服务提供者
+3. **随机(Random)**：随机选择服务提供者
+
+### 高可用保障
+
+- **熔断保护**：当服务频繁失败时自动熔断，避免雪崩效应
+- **限流保障**：基于令牌桶算法实现精确的接口级限流
+- **重试机制**：可配置的失败重试，提高服务调用成功率
 
 ## 快速开始
 
-### 环境准备
+### 1. 定义服务接口
 
-- JDK 8+
-- Maven 3.6+
-- ZooKeeper 3.6+
-
-### Maven依赖
-
-```xml
-<dependencies>
-    <!-- ZooKeeper客户端 -->
-    <dependency>
-        <groupId>org.apache.curator</groupId>
-        <artifactId>curator-recipes</artifactId>
-        <version>5.1.0</version>
-    </dependency>
-    
-    <!-- Netty网络框架 -->
-    <dependency>
-        <groupId>io.netty</groupId>
-        <artifactId>netty-all</artifactId>
-        <version>4.1.51.Final</version>
-    </dependency>
-    
-    <!-- 重试库 -->
-    <dependency>
-        <groupId>com.github.rholder</groupId>
-        <artifactId>guava-retrying</artifactId>
-        <version>2.0.0</version>
-    </dependency>
-</dependencies>
-```
-
-### 定义服务接口
+在`rpc-api`模块中定义服务接口：
 
 ```java
 public interface UserService {
+    // 客户端通过这个接口调用服务端的实现类
     User getUserByUserId(Integer id);
+    //新增一个功能
     Integer insertUserId(User user);
 }
 ```
 
-### 实现服务接口
+### 2. 实现服务接口
+
+在`rpc-provider`模块中实现接口：
 
 ```java
+@Log4j2
 public class UserServiceImpl implements UserService {
     @Override
     public User getUserByUserId(Integer id) {
-        System.out.println("服务端查询了" + id + "的用户");
-        // 模拟从数据库中取用户
+        log.info("客户端查询了" + id + "的用户");
+        // 模拟从数据库中取用户的行为
+        Random random = new Random();
         User user = User.builder()
-            .userName(UUID.randomUUID().toString())
-            .id(id)
-            .sex(new Random().nextBoolean())
-            .build();
+                .userName(UUID.randomUUID().toString())
+                .id(id)
+                .sex(random.nextBoolean())
+                .build();
         return user;
     }
 
     @Override
     public Integer insertUserId(User user) {
-        System.out.println("插入数据成功：" + user.getUserName());
+        log.info("插入数据成功" + user.getUserName());
         return user.getId();
     }
 }
 ```
 
-### 启动服务提供者
+### 3. 启动服务提供者
 
 ```java
 public class TestServer {
     public static void main(String[] args) {
         UserService userService = new UserServiceImpl();
-        int port = 9998;
+        int port = 9999;
         String host = "127.0.0.1";
 
         ServiceProvider serviceProvider = new ServiceProvider(host, port);
@@ -118,195 +113,144 @@ public class TestServer {
 }
 ```
 
-### 服务调用（客户端）
+### 4. 服务调用（客户端）
+
+在`rpc-consumer`模块中调用远程服务：
 
 ```java
-public class TestClient {
+public class ConsumerTest {
     public static void main(String[] args) {
         ClientProxy clientProxy = new ClientProxy();
         UserService proxy = clientProxy.getProxy(UserService.class);
-
-        // 像调用本地方法一样调用远程服务
+        
+        // 调用远程服务
         User user = proxy.getUserByUserId(1);
-        System.out.println(user.toString());
+        log.info("从服务端得到的user={}", user);
+        
+        Integer id = proxy.insertUserId(User.builder().id(1).userName("User1").sex(true).build());
+        log.info("向服务端插入user的id={}", id);
     }
 }
 ```
 
-## 核心组件详解
+## 核心组件
 
-### 1. 服务注册与发现
+### 负载均衡
 
-服务提供者启动时，自动将服务信息注册到ZooKeeper，消费者从ZooKeeper获取服务地址并进行调用。
-
-#### 服务注册
+#### 一致性哈希实现
 
 ```java
-// 创建服务提供者
-ServiceProvider serviceProvider = new ServiceProvider(host, port);
-// 注册服务
-serviceProvider.provideServiceInterface(userService);
+public class ConsistencyHashBalance implements LoadBalance {
+    private static final int VIRTUAL_NUM = 5;
+    private final ConcurrentNavigableMap<Integer, String> shards = new ConcurrentSkipListMap<>();
+    
+    public String getServer(String node, List<String> serviceList) {
+        // 根据请求key获取对应的服务节点
+        int hash = getHash(node);
+        ConcurrentNavigableMap<Integer, String> subMap = shards.tailMap(hash);
+        Integer key = subMap.isEmpty() ? shards.firstKey() : subMap.firstKey();
+        String virtual_node = shards.get(key);
+        return virtual_node.substring(0, virtual_node.indexOf("&&"));
+    }
+    
+    // 其他方法省略...
+}
 ```
 
-#### 服务发现
+### 熔断器
 
 ```java
-// 从注册中心获取服务地址
-InetSocketAddress address = serviceCenter.serviceDiscovery(request.getInterfaceName());
+public class CircuitBreaker {
+    private volatile CircuitBreakerState state = CircuitBreakerState.CLOSED;
+    private final AtomicInteger failureCount = new AtomicInteger(0);
+    private final AtomicInteger successCount = new AtomicInteger(0);
+    
+    public synchronized boolean allowRequest() {
+        switch (state) {
+            case OPEN:
+                // 熔断时间达到后尝试半开状态
+                if (System.currentTimeMillis() - lastFailureTime > retryTimePeriod) {
+                    state = CircuitBreakerState.HALF_OPEN;
+                    resetCounts();
+                }
+                return false;
+            case HALF_OPEN:
+                // 半开状态允许有限请求通过
+                return requestCount.getAndIncrement() < maxHalfOpenRequests;
+            default:
+                return true;
+        }
+    }
+    
+    // 其他方法省略...
+}
 ```
 
-### 2. 负载均衡
-
-框架支持多种负载均衡策略，帮助客户端选择最合适的服务提供者实例。
-
-#### 轮询策略
+### 限流器
 
 ```java
-public class RoundLoadBalance implements LoadBalance {
-    private int choose;
-
+public class TokenBucketRateLimitImpl implements RateLimit {
+    private AtomicInteger tokens;
+    private final int capacity;
+    private final int ratePerSecond;
+    private long lastTokenTime;
+    
     @Override
-    public String balance(List<String> addressList) {
-        choose++;
-        choose = choose % addressList.size();
-        return addressList.get(choose);
+    public synchronized boolean getToken() {
+        // 更新令牌桶中的令牌
+        long now = System.currentTimeMillis();
+        long timeElapsed = now - lastTokenTime;
+        int newTokens = (int) (timeElapsed / 1000 * ratePerSecond);
+        if (newTokens > 0) {
+            tokens.getAndUpdate(current -> Math.min(current + newTokens, capacity));
+            lastTokenTime = now;
+        }
+        
+        // 获取令牌
+        if (tokens.get() > 0) {
+            tokens.decrementAndGet();
+            return true;
+        }
+        return false;
     }
+    
+    // 其他方法省略...
 }
 ```
 
-#### 随机策略
-
-```java
-public class RandomBalance implements LoadBalance {
-    @Override
-    public String balance(List<String> addressList) {
-        Random random = new Random();
-        int choose = random.nextInt(addressList.size());
-        return addressList.get(choose);
-    }
-}
-```
-
-### 3. 限流保护
-
-基于令牌桶算法实现服务限流，保护服务不被过载请求压垮。
-
-```java
-// 获取接口限流器
-RateLimit rateLimit = serviceProvider.getRateLimitProvider().getRateLimit(interfaceName);
-
-// 判断是否被限流
-if (!rateLimit.getToken()) {
-    System.out.println(interfaceName + "被限流");
-    return RpcResponse.fail();
-}
-```
-
-### 4. 熔断器模式
-
-熔断器保护服务在出现故障时，能够快速失败并防止雪崩效应。框架实现了三种状态的熔断器：
-
-- **关闭状态(CLOSED)**：正常工作，统计失败次数
-- **开启状态(OPEN)**：直接拒绝请求，一段时间后尝试半开
-- **半开状态(HALF_OPEN)**：允许少量请求通过，成功率达标后恢复
-
-```java
-CircuitBreaker circuitBreaker = circuitBreakerProvider.getCircuitBreaker(interfaceName);
-if (!circuitBreaker.allowRequest()) {
-    // 熔断器开启，拒绝请求
-    return null;
-}
-
-// 请求成功时记录
-circuitBreaker.recordSuccess();
-
-// 请求失败时记录
-circuitBreaker.recordFailure();
-```
-
-### 5. 重试机制
-
-使用Guava Retry实现失败重试，提高服务可用性。
-
-```java
-// 检查服务是否支持重试
-if (serviceCenter.checkRetry(serviceName)) {
-    GuavaRetry guavaRetry = new GuavaRetry();
-    // 使用重试机制发送请求
-    response = guavaRetry.sendServiceWithRetry(rpcRequest, rpcClient);
-} else {
-    response = rpcClient.sendRequest(rpcRequest);
-}
-```
-
-## 配置说明
+## 配置选项
 
 ### ZooKeeper配置
 
 ```java
-// ZooKeeper服务器地址
-String zkAddress = "127.0.0.1:2182";
-
-// 根节点路径
-String rootPath = "MyRPC";
-
-// 会话超时时间
-int sessionTimeout = 40000;
-```
-
-### 限流器配置
-
-```java
-// 令牌生成间隔(ms)、令牌桶容量
-RateLimit rateLimit = new TokenBucketRateLimitImpl(1, 10);
+RetryPolicy policy = new ExponentialBackoffRetry(1000, 3);
+this.client = CuratorFrameworkFactory.builder()
+        .connectString("127.0.0.1:2182")
+        .sessionTimeoutMs(40000)
+        .retryPolicy(policy)
+        .namespace(ROOT_PATH)
+        .build();
 ```
 
 ### 断路器配置
 
 ```java
-// 失败阈值、半开状态成功率要求、重试时间周期(ms)
-CircuitBreaker circuitBreaker = new CircuitBreaker(1, 0.5, 10000);
-```
-
-## 高级功能
-
-### 服务状态监控
-
-框架通过ZooKeeper的监听机制，实时监控服务状态变更：
-
-- 服务上线自动发现
-- 服务下线自动移除
-- 服务地址变更自动更新
-
-```java
-// 设置监听
-watcher.watchToUpdate(ROOT_PATH);
-```
-
-### 本地服务缓存
-
-客户端维护服务地址的本地缓存，提高服务发现效率：
-
-```java
-// 优先从本地缓存获取服务地址
-List<String> addressList = cache.getServcieFromCache(serviceName);
-
-// 缓存未命中时从ZooKeeper获取
-if (addressList == null) {
-    addressList = client.getChildren().forPath("/" + serviceName);
-    // 添加到缓存
-    cache.addServcieToCache(serviceName, address);
-}
+CircuitBreaker circuitBreaker = new CircuitBreaker(
+    5,      // 5次失败触发熔断
+    0.8,    // 80%成功率要求
+    30000,  // 30秒熔断持续时间
+    10      // 半开状态最多10次探测请求
+);
 ```
 
 ## 未来计划
 
-- 支持多种序列化方式(如Protobuf、JSON)
-- 增加服务监控和指标统计功能
-- 实现服务分组与版本管理
+- 支持更多序列化方式（Protobuf、Hessian等）
+- 扩展负载均衡策略
+- 增加配置中心集成
+- 提供服务治理控制台
 - 支持异步调用模式
-- 增强服务治理能力
-- 提供更完善的管理控制台
+- 完善监控与追踪功能
 
 ## 参与贡献
 
