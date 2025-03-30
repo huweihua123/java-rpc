@@ -35,7 +35,7 @@ public class ClientProxy implements InvocationHandler {
         }
         RpcResponse rpcResponse;
 
-        if (!serviceCenter.checkRetry(method.getDeclaringClass().getName())) {
+        if (serviceCenter.checkRetry(method.getDeclaringClass().getName())) {
             GuavaRetry guavaRetry = new GuavaRetry();
             rpcResponse = guavaRetry.sendServiceWithRetry(rpcRequest, rpcClient);
         } else {

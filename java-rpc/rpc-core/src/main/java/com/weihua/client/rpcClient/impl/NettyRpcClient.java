@@ -13,9 +13,12 @@ import io.netty.channel.EventLoopGroup;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.nio.NioSocketChannel;
 import io.netty.util.AttributeKey;
+import lombok.extern.log4j.Log4j;
+import lombok.extern.log4j.Log4j2;
 
 import java.net.InetSocketAddress;
 
+@Log4j2
 public class NettyRpcClient implements RpcClient {
     public static final Bootstrap bootstrap;
 
@@ -45,7 +48,7 @@ public class NettyRpcClient implements RpcClient {
         String host = address.getHostName();
         int port = address.getPort();
         try {
-            ChannelFuture channelFuture  = bootstrap.connect(host, port).sync();
+            ChannelFuture channelFuture = bootstrap.connect(host, port).sync();
             Channel channel = channelFuture.channel();
             // 发送数据
             channel.writeAndFlush(request);
@@ -60,7 +63,8 @@ public class NettyRpcClient implements RpcClient {
 
             channel.close();
 
-            System.out.println(response);
+//            System.out.println(response);
+            log.info(response);
             return response;
         } catch (InterruptedException e) {
             e.printStackTrace();

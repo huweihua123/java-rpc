@@ -1,10 +1,13 @@
 package com.weihua.client.cache;
 
+import lombok.extern.log4j.Log4j;
+import lombok.extern.log4j.Log4j2;
+
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-
+@Log4j2
 public class ServiceCache {
     private static Map<String, List<String>> cache = new HashMap<>();
 
@@ -12,7 +15,8 @@ public class ServiceCache {
         List<String> addresslist = cache.getOrDefault(serviceName, new ArrayList<>());
         addresslist.add(address);
         cache.put(serviceName, addresslist);
-        System.out.println("将name为" + serviceName + "和地址为" + address + "的服务添加到本地缓存中");
+//        System.out.println("将name为" + serviceName + "和地址为" + address + "的服务添加到本地缓存中");
+        log.info("将name为" + serviceName + "和地址为" + address + "的服务添加到本地缓存中");
     }
 
     public void replaceServiceAddress(String serviceName, String oldAddress, String newAddress) {

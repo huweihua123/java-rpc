@@ -18,9 +18,13 @@ import io.netty.handler.codec.http.FullHttpResponse;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.HttpVersion;
 import lombok.AllArgsConstructor;
+import lombok.extern.log4j.Log4j;
+import lombok.extern.log4j.Log4j2;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+
+@Log4j2
 @AllArgsConstructor
 public class NettyServerHandler extends SimpleChannelInboundHandler<RpcRequest> {
     private ServiceProvider serviceProvider;
@@ -28,8 +32,9 @@ public class NettyServerHandler extends SimpleChannelInboundHandler<RpcRequest> 
     @Override
     protected void channelRead0(ChannelHandlerContext ctx, RpcRequest request) throws Exception {
 
-        System.out.println("处理tcp");
-        System.out.println(request.toString());
+//        System.out.println("处理tcp");
+        log.info("处理tcp");
+
         if ("/health".equals(request.getMethodName())) {
 
             FullHttpResponse response = new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.OK);
@@ -56,7 +61,8 @@ public class NettyServerHandler extends SimpleChannelInboundHandler<RpcRequest> 
         RateLimit rateLimit = serviceProvider.getRateLimitProvider().getRateLimit(interfaceName);
 
         if (!rateLimit.getToken()) {
-            System.out.println(interfaceName + "被限流");
+//            System.out.println(interfaceName + "被限流");
+            log.warn(interfaceName + "被限流");
             return RpcResponse.fail();
         }
 
@@ -70,7 +76,8 @@ public class NettyServerHandler extends SimpleChannelInboundHandler<RpcRequest> 
             return RpcResponse.success(invoke);
         } catch (NoSuchMethodException | IllegalAccessException | InvocationTargetException e) {
             e.printStackTrace();
-            System.out.println("方法执行错误");
+//            System.out.println("方法执行错误");
+            log.warn(interfaceName + "被限流");
             return RpcResponse.fail();
         }
     }

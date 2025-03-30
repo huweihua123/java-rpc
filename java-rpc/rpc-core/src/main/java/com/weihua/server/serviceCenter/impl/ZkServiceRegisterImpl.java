@@ -1,3 +1,10 @@
+/*
+ * @Author: weihua hu
+ * @Date: 2025-03-20 20:47:34
+ * @LastEditTime: 2025-03-29 16:42:55
+ * @LastEditors: weihua hu
+ * @Description: 
+ */
 package com.weihua.server.serviceCenter.impl;
 
 import com.weihua.server.serviceCenter.ServiceRegister;
@@ -40,5 +47,10 @@ public class ZkServiceRegisterImpl implements ServiceRegister {
         return serverAddress.getHostName() +
                 ":" +
                 serverAddress.getPort();
+    }
+
+    @Override
+    public String toString() {
+        return "zookeeper";
     }
 }

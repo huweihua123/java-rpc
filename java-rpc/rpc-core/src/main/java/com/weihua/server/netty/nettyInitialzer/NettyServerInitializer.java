@@ -10,7 +10,9 @@ import io.netty.handler.codec.LengthFieldPrepender;
 import io.netty.handler.codec.serialization.ClassResolver;
 import io.netty.handler.codec.serialization.ObjectDecoder;
 import io.netty.handler.codec.serialization.ObjectEncoder;
+import lombok.extern.log4j.Log4j2;
 
+@Log4j2
 public class NettyServerInitializer extends ChannelInitializer<SocketChannel> {
     private ServiceProvider serviceProvider;
 
@@ -20,7 +22,8 @@ public class NettyServerInitializer extends ChannelInitializer<SocketChannel> {
 
     @Override
     public void initChannel(SocketChannel ch) throws Exception {
-        System.out.println("初始化initChannel");
+//        System.out.println("初始化initChannel");
+        log.info("初始化initChannel");
         ChannelPipeline pipeline = ch.pipeline();
         //消息格式 【长度】【消息体】，解决沾包问题
         pipeline.addLast(
@@ -39,7 +42,6 @@ public class NettyServerInitializer extends ChannelInitializer<SocketChannel> {
             }
         }));
 
-        System.out.println("asdasdasdasdad");
         pipeline.addLast(new NettyServerHandler(serviceProvider));
     }
 }

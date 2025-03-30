@@ -28,16 +28,16 @@ public class WatchZk {
                 new CuratorCacheListener() {
                     @Override
                     public void event(Type type, ChildData childData, ChildData childData1) {
-                        System.out.println(type.name());
-                        System.out.println("监听到变化前:");
-                        if (childData != null) {
-                            System.out.println(childData.getPath());
-                        }
-                        System.out.println("监听到变化后:");
-                        if (childData1 != null) {
-                            System.out.println(childData1.getPath());
-
-                        }
+//                        System.out.println(type.name());
+//                        System.out.println("监听到变化前:");
+//                        if (childData != null) {
+//                            System.out.println(childData.getPath());
+//                        }
+//                        System.out.println("监听到变化后:");
+//                        if (childData1 != null) {
+//                            System.out.println(childData1.getPath());
+//
+//                        }
                         switch (type.name()) {
                             case "NODE_CREATED":
                                 String[] data = pasrePath(childData1);
@@ -48,15 +48,15 @@ public class WatchZk {
                                 }
                                 break;
                             case "NODE_CHANGED":
-                                if (childData.getData() != null) {
-                                    System.out.println("修改前的数据: " + new String(childData.getData()));
-                                } else {
-                                    System.out.println("节点第一次赋值!");
-                                }
+//                                if (childData.getData() != null) {
+//                                    System.out.println("修改前的数据: " + new String(childData.getData()));
+//                                } else {
+//                                    System.out.println("节点第一次赋值!");
+//                                }
                                 String[] oldPathList = pasrePath(childData);
                                 String[] newPathList = pasrePath(childData1);
                                 cache.replaceServiceAddress(oldPathList[1], oldPathList[2], newPathList[2]);
-                                System.out.println("修改后的数据: " + new String(childData1.getData()));
+//                                System.out.println("修改后的数据: " + new String(childData1.getData()));
                                 break;
                             case "NODE_DELETED":
                                 String[] pathList_d = pasrePath(childData);

@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Configuration status="WARN">
+    <Appenders>
+        <!-- 控制台输出 -->
+        <Console name="Console" target="SYSTEM_OUT">
+            <PatternLayout pattern="%d{HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"/>
+        </Console>
+
+        <!-- 按模块输出到独立文件 -->
+        <RollingFile name="ModuleFile"
+                     fileName="${sys:log.base.dir}/${module.name}/app.log"
+                     filePattern="${sys:log.base.dir}/${module.name}/app-%d{yyyy-MM-dd}-%i.log">
+            <PatternLayout>
+                <pattern>%d{ISO8601} [%t] %-5level %logger{36} - %msg%n</pattern>
+            </PatternLayout>
+            <Policies>
+                <TimeBasedTriggeringPolicy interval="1" modulate="true"/>
+                <SizeBasedTriggeringPolicy size="100 MB"/>
+            </Policies>
+            <DefaultRolloverStrategy max="10"/>
+        </RollingFile>
+    </Appenders>
+
+    <Loggers>
+        <Root level="INFO">
+            <AppenderRef ref="Console"/>
+            <AppenderRef ref="ModuleFile"/>
+        </Root>
+    </Loggers>
+</Configuration>

@@ -11,7 +11,7 @@ package com.weihua.client.serverCenter.impl;
 import com.weihua.client.cache.ServiceCache;
 import com.weihua.client.serverCenter.ServiceCenter;
 import com.weihua.client.serverCenter.balance.LoadBalance;
-import com.weihua.client.serverCenter.balance.impl.RoundLoadBalance;
+import com.weihua.client.serverCenter.balance.impl.ConsistencyHashBalance;
 import com.weihua.client.serverCenter.watch.WatchZk;
 import org.apache.curator.RetryPolicy;
 import org.apache.curator.framework.CuratorFramework;
@@ -52,7 +52,8 @@ public class ZkServiceCenter implements ServiceCenter {
 
         this.watcher = new WatchZk(client, cache);
 
-        this.loadBalance = new RoundLoadBalance();
+//        this.loadBalance = new RoundLoadBalance();
+        this.loadBalance = new ConsistencyHashBalance();
 
         watcher.watchToUpdate(ROOT_PATH);
     }
@@ -68,7 +69,7 @@ public class ZkServiceCenter implements ServiceCenter {
                 return true;
             }
         } catch (Exception e) {
-            e.printStackTrace();
+//            e.printStackTrace();
         }
 
         return canRetry;

@@ -15,7 +15,7 @@ public class TestServer {
         ServiceProvider serviceProvider = new ServiceProvider(host, port);
         serviceProvider.provideServiceInterface(userService);
 
-        RpcServer rpcServer=new NettyRpcServer(serviceProvider);
+        RpcServer rpcServer = new NettyRpcServer(serviceProvider);
         rpcServer.start(port);
 
     }
