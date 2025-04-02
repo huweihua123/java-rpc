@@ -16,6 +16,7 @@ import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
 import java.net.InetSocketAddress;
+import java.util.UUID;
 
 @Log4j2
 public class ClientProxy implements InvocationHandler {
@@ -39,7 +40,8 @@ public class ClientProxy implements InvocationHandler {
     @Override
     public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
         ClientTraceInterceptor.beforeInvoke();
-        RpcRequest rpcRequest = RpcRequest.builder().interfaceName(method.getDeclaringClass().getName())
+        RpcRequest rpcRequest = RpcRequest.builder().requestId(UUID.randomUUID().toString())
+                .interfaceName(method.getDeclaringClass().getName())
                 .methodName(method.getName()).params(args).paramTypes(method.getParameterTypes()).build();
         CircuitBreaker circuitBreaker = circuitBreakerProvider.getCircuitBreaker(method.getDeclaringClass().getName());
         if (!circuitBreaker.allowRequest()) {
@@ -80,7 +82,7 @@ public class ClientProxy implements InvocationHandler {
     }
 
     public <T> T getProxy(Class<T> clazz) {
-        Object o = Proxy.newProxyInstance(clazz.getClassLoader(), new Class[]{clazz}, this);
+        Object o = Proxy.newProxyInstance(clazz.getClassLoader(), new Class[] { clazz }, this);
         return (T) o;
     }
 

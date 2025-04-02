@@ -7,16 +7,19 @@
  */
 package com.weihua.client.pool;
 
-import io.netty.channel.Channel;
 import io.netty.bootstrap.Bootstrap;
+import io.netty.channel.Channel;
 import lombok.extern.log4j.Log4j2;
 
 import java.net.InetSocketAddress;
+import java.util.List;
 import java.util.Map;
+import java.util.Random;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.stream.Collectors;
 
 /**
  * Netty 客户端连接池，管理与服务端的连接资源
@@ -26,24 +29,20 @@ public class ChannelPool {
 
     // 默认每个服务地址的最大连接数
     private static final int DEFAULT_MAX_CONNECTIONS = 16;
-
-    // 按服务地址存储连接池
-    private final Map<InetSocketAddress, CopyOnWriteArrayList<Channel>> channelPools = new ConcurrentHashMap<>();
-
-    // 连接计数器
-    private final Map<InetSocketAddress, AtomicInteger> channelCounter = new ConcurrentHashMap<>();
-
-    // 每个地址的最大连接数
-    private final Map<InetSocketAddress, Integer> maxConnectionsMap = new ConcurrentHashMap<>();
-
-    // 连接创建锁
-    private final ReentrantLock lock = new ReentrantLock();
-
-    // 客户端启动器
-    private Bootstrap bootstrap;
-
     // 单例
     private static final ChannelPool INSTANCE = new ChannelPool();
+    // 按服务地址存储连接池
+    private final Map<InetSocketAddress, CopyOnWriteArrayList<Channel>> channelPools = new ConcurrentHashMap<>();
+    // 连接计数器
+    private final Map<InetSocketAddress, AtomicInteger> channelCounter = new ConcurrentHashMap<>();
+    // 每个地址的最大连接数
+    private final Map<InetSocketAddress, Integer> maxConnectionsMap = new ConcurrentHashMap<>();
+    // 连接创建锁
+    private final ReentrantLock lock = new ReentrantLock();
+    // 客户端启动器
+    private Bootstrap bootstrap;
+    // 随机数生成器，用于负载均衡
+    private final Random random = new Random();
 
     private ChannelPool() {
     }
@@ -69,83 +68,105 @@ public class ChannelPool {
     /**
      * 获取指定地址的最大连接数
      */
-    private int getMaxConnections(InetSocketAddress address) {
+    public int getMaxConnections(InetSocketAddress address) {
         return maxConnectionsMap.getOrDefault(address, DEFAULT_MAX_CONNECTIONS);
     }
 
     /**
      * 获取或创建Channel
-     * 
+     * 策略：
+     * 1. 未达到最大连接数则创建新连接
+     * 2. 达到最大连接数则随机获取一个可用连接
+     *
      * @param address 服务地址
      * @return Channel对象
      */
     public Channel getOrCreateChannel(InetSocketAddress address) throws Exception {
-        // 尝试获取现有可用连接
-        Channel channel = getChannel(address);
+        // 获取当前连接数
+        int currentCount = channelCounter.getOrDefault(address, new AtomicInteger(0)).get();
+        int maxConnections = getMaxConnections(address);
+
+        // 如果未达到最大连接数，创建新连接
+        if (currentCount < maxConnections) {
+            lock.lock();
+            try {
+                // 双重检查连接数
+                currentCount = channelCounter.getOrDefault(address, new AtomicInteger(0)).get();
+                if (currentCount < maxConnections) {
+                    // 创建新连接
+                    if (bootstrap == null) {
+                        throw new IllegalStateException("Bootstrap未设置，无法创建新连接");
+                    }
+
+                    Channel newChannel = bootstrap.connect(address).sync().channel();
+                    if (newChannel != null && newChannel.isActive()) {
+                        addChannel(address, newChannel);
+                        log.info("创建新连接：{}, 当前连接数：{}/{}", address,
+                                channelCounter.get(address).get(), maxConnections);
+                        return newChannel;
+                    }
+                    throw new Exception("创建新连接失败");
+                }
+            } finally {
+                lock.unlock();
+            }
+        }
+
+        // 如果达到最大连接数，随机获取一个可用连接
+        Channel channel = getRandomAvailableChannel(address);
         if (channel != null) {
             return channel;
         }
 
-        lock.lock();
-        try {
-            // 双重检查锁定
-            channel = getChannel(address);
-            if (channel != null) {
-                return channel;
-            }
-
-            // 检查是否达到最大连接数
-            int currentCount = channelCounter.getOrDefault(address, new AtomicInteger(0)).get();
-            int maxConnections = getMaxConnections(address);
-
-            if (currentCount >= maxConnections) {
-                log.warn("已达到最大连接数：{}，地址：{}", maxConnections, address);
-                throw new Exception("连接池已满，无法创建新连接");
-            }
-
-            // 创建新连接
-            if (bootstrap == null) {
-                throw new IllegalStateException("Bootstrap未设置，无法创建新连接");
-            }
-
-            channel = bootstrap.connect(address).sync().channel();
-            if (channel != null && channel.isActive()) {
-                addChannel(address, channel);
-                return channel;
-            }
-
-            throw new Exception("创建新连接失败");
-        } finally {
-            lock.unlock();
-        }
+        // 没有可用连接，抛出异常
+        throw new Exception("连接池已满且没有可用连接，请稍后重试");
     }
 
     /**
-     * 获取可用的channel
-     * 
+     * 随机获取一个可用的channel（负载均衡）
+     *
      * @param address 服务地址
      * @return Channel对象，如果没有可用连接返回null
      */
-    public Channel getChannel(InetSocketAddress address) {
+    public Channel getRandomAvailableChannel(InetSocketAddress address) {
         CopyOnWriteArrayList<Channel> channels = channelPools.get(address);
         if (channels == null || channels.isEmpty()) {
             return null;
         }
 
-        // 遍历查找可用的连接
-        for (Channel channel : channels) {
-            if (channel != null && channel.isActive() && channel.isWritable()) {
-                log.debug("获取到一个可用的连接: {}", channel);
-                return channel;
-            }
+        // 筛选出所有可用的连接
+        List<Channel> availableChannels = channels.stream()
+                .filter(ch -> ch != null && ch.isActive() && ch.isWritable())
+                .collect(Collectors.toList());
+
+        if (availableChannels.isEmpty()) {
+            return null;
         }
 
-        return null;
+        // 随机选择一个可用连接
+        int index = random.nextInt(availableChannels.size());
+        Channel selectedChannel = availableChannels.get(index);
+
+        log.debug("随机获取到一个可用连接[{}/{}]: {}",
+                index + 1, availableChannels.size(), selectedChannel);
+        return selectedChannel;
+    }
+
+    /**
+     * 获取可用的channel
+     *
+     * @param address 服务地址
+     * @return Channel对象，如果没有可用连接返回null
+     * @deprecated 使用 getRandomAvailableChannel 代替
+     */
+    @Deprecated
+    public Channel getChannel(InetSocketAddress address) {
+        return getRandomAvailableChannel(address);
     }
 
     /**
      * 添加Channel到连接池
-     * 
+     *
      * @param address 服务地址
      * @param channel 连接对象
      */
@@ -161,7 +182,7 @@ public class ChannelPool {
 
     /**
      * 移除不可用的Channel
-     * 
+     *
      * @param address 服务地址
      * @param channel 待移除的连接
      */
@@ -180,7 +201,7 @@ public class ChannelPool {
 
     /**
      * 关闭指定地址的所有连接
-     * 
+     *
      * @param address 服务地址
      */
     public void closeChannels(InetSocketAddress address) {
@@ -235,5 +256,13 @@ public class ChannelPool {
         channelPools.clear();
         channelCounter.clear();
         log.info("连接池已关闭，所有资源已清理");
+    }
+
+    /**
+     * 获取连接池中特定地址的连接数
+     */
+    public int getConnectionCount(InetSocketAddress address) {
+        AtomicInteger counter = channelCounter.get(address);
+        return counter != null ? counter.get() : 0;
     }
 }

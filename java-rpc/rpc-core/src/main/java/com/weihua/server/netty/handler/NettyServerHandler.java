@@ -1,7 +1,7 @@
 /*
  * @Author: weihua hu
  * @Date: 2025-03-20 20:02:05
- * @LastEditTime: 2025-04-02 17:37:28
+ * @LastEditTime: 2025-04-02 23:48:13
  * @LastEditors: weihua hu
  * @Description:
  */
@@ -49,7 +49,6 @@ public class NettyServerHandler extends SimpleChannelInboundHandler<RpcRequest> 
             ctx.writeAndFlush(response);
             long costTime = System.currentTimeMillis() - startTime;
 
-
             log.info("处理请求[{}{}]耗时：{}ms", request.getInterfaceName(), request.getMethodName(), costTime);
             ServerTraceInterceptor.afterHandle(request.getMethodName());
         }
@@ -77,7 +76,7 @@ public class NettyServerHandler extends SimpleChannelInboundHandler<RpcRequest> 
         try {
             method = service.getClass().getMethod(rpcRequest.getMethodName(), rpcRequest.getParamTypes());
             Object invoke = method.invoke(service, rpcRequest.getParams());
-            return RpcResponse.success(invoke);
+            return RpcResponse.success(invoke, rpcRequest.getRequestId());
         } catch (NoSuchMethodException | IllegalAccessException | InvocationTargetException e) {
             log.error("方法执行错误，接口: {}, 方法: {}", interfaceName, rpcRequest.getMethodName(), e);
             return RpcResponse.fail("方法执行错误");

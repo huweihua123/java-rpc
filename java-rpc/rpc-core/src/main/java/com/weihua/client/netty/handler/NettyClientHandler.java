@@ -1,4 +1,13 @@
+/*
+ * @Author: weihua hu
+ * @Date: 2025-03-21 01:15:34
+ * @LastEditTime: 2025-04-02 23:54:42
+ * @LastEditors: weihua hu
+ * @Description: 
+ */
 package com.weihua.client.netty.handler;
+
+import com.weihua.client.util.RpcFutureManager;
 
 import common.message.RpcResponse;
 import io.netty.channel.ChannelHandlerContext;
@@ -11,8 +20,9 @@ public class NettyClientHandler extends SimpleChannelInboundHandler<RpcResponse>
     @Override
     protected void channelRead0(ChannelHandlerContext ctx, RpcResponse response) throws Exception {
         // 接收到response, 给channel设计别名，让sendRequest里读取response
-        AttributeKey<RpcResponse> key = AttributeKey.valueOf("RPCResponse");
-        ctx.channel().attr(key).set(response);
+        // AttributeKey<RpcResponse> key = AttributeKey.valueOf("RPCResponse");
+        // ctx.channel().attr(key).set(response);
+        RpcFutureManager.completeFuture(response.getRequestId(), response);
     }
 
     @Override
