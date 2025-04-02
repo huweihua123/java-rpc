@@ -1,12 +1,16 @@
 package common.message;
 
+import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 import java.io.Serializable;
 
 @Data
 @Builder
+@NoArgsConstructor
+@AllArgsConstructor
 public class RpcResponse implements Serializable {
     private int code;
     private String message;

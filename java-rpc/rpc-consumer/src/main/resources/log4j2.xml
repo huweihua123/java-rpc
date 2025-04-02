@@ -8,8 +8,8 @@
 
         <!-- 按模块输出到独立文件 -->
         <RollingFile name="ModuleFile"
-                     fileName="${sys:log.base.dir}/${module.name}/app.log"
-                     filePattern="${sys:log.base.dir}/${module.name}/app-%d{yyyy-MM-dd}-%i.log">
+                     fileName="/Users/huweihua/java/java-rpc/logs/rpc-consumer/app.log"
+                     filePattern="/Users/huweihua/java/java-rpc/logs/rpc-consumer/app-%d{yyyy-MM-dd}-%i.log">
             <PatternLayout>
                 <pattern>%d{ISO8601} [%t] %-5level %logger{36} - %msg%n</pattern>
             </PatternLayout>

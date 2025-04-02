@@ -1,7 +1,7 @@
 /*
  * @Author: weihua hu
  * @Date: 2025-03-24 16:34:15
- * @LastEditTime: 2025-03-29 19:54:31
+ * @LastEditTime: 2025-04-02 17:12:08
  * @LastEditors: weihua hu
  * @Description:
  */
@@ -22,11 +22,12 @@ public class ConsumerTest {
     private static final ExecutorService executorService = Executors.newFixedThreadPool(THREAD_POOL_SIZE);
 
     public static void main(String[] args) throws InterruptedException {
+        
         ClientProxy clientProxy = new ClientProxy();
 
         UserService proxy = clientProxy.getProxy(UserService.class);
 
-        for (int i = 0; i < 100; i++) {
+        for (int i = 0; i < 10; i++) {
             final Integer i1 = i;
             if (i % 30 == 0) {
                 Thread.sleep(100);
@@ -49,7 +50,7 @@ public class ConsumerTest {
         }
 
         executorService.shutdown();
-        // clientProxy.close();
+//        clientProxy.close();
 
     }
 }

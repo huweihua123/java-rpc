@@ -20,13 +20,18 @@ public class ConsistencyHashBalance implements LoadBalance {
     }
 
     private static int getHash(String str) {
-        int hash = 0x811C9DC5;
-        final int FNV_PRIME = 0x01000193;
+        final int p = 16777619;
+        int hash = (int) 2166136261L;
+        for (int i = 0; i < str.length(); i++)
+            hash = (hash ^ str.charAt(i)) * p;
+        hash += hash << 13;
+        hash ^= hash >> 7;
+        hash += hash << 3;
+        hash ^= hash >> 17;
+        hash += hash << 5;
 
-        byte[] bytes = str.getBytes(StandardCharsets.UTF_8);
-        for (byte b : bytes) {
-            hash = (hash * FNV_PRIME) ^ (b & 0xFF);
-        }
+        // 如果算出来的值为负数则取其绝对值
+        if (hash < 0) hash = Math.abs(hash);
         return hash;
     }
 

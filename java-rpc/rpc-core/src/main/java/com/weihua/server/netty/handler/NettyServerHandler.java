@@ -1,7 +1,7 @@
 /*
  * @Author: weihua hu
  * @Date: 2025-03-20 20:02:05
- * @LastEditTime: 2025-03-21 11:01:42
+ * @LastEditTime: 2025-04-02 17:37:28
  * @LastEditors: weihua hu
  * @Description:
  */
@@ -9,16 +9,13 @@ package com.weihua.server.netty.handler;
 
 import com.weihua.server.provider.ServiceProvider;
 import com.weihua.server.rateLimit.RateLimit;
+import com.weihua.trace.interceptor.ServerTraceInterceptor;
+import common.message.RequestType;
 import common.message.RpcRequest;
 import common.message.RpcResponse;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
-import io.netty.handler.codec.http.DefaultFullHttpResponse;
-import io.netty.handler.codec.http.FullHttpResponse;
-import io.netty.handler.codec.http.HttpResponseStatus;
-import io.netty.handler.codec.http.HttpVersion;
 import lombok.AllArgsConstructor;
-import lombok.extern.log4j.Log4j;
 import lombok.extern.log4j.Log4j2;
 
 import java.lang.reflect.InvocationTargetException;
@@ -32,24 +29,35 @@ public class NettyServerHandler extends SimpleChannelInboundHandler<RpcRequest> 
     @Override
     protected void channelRead0(ChannelHandlerContext ctx, RpcRequest request) throws Exception {
 
-//        System.out.println("处理tcp");
-        log.info("处理tcp");
-
-        if ("/health".equals(request.getMethodName())) {
-
-            FullHttpResponse response = new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.OK);
-            ctx.writeAndFlush(response);
+        if (request == null) {
+            log.error("接收到非法请求，RpcRequest 为空");
             return;
         }
 
-        RpcResponse response = getResponse(request);
-        ctx.writeAndFlush(response);
-        ctx.close();
+        if (request.getType() == RequestType.HEARTBEAT) {
+            log.info("接收到来自客户端的心跳包");
+            return;
+        }
+
+        // 正常业务处理
+        if (request.getType() == RequestType.NORMAL) {
+            ServerTraceInterceptor.beforeHandle();
+
+            long startTime = System.currentTimeMillis();
+            RpcResponse response = getResponse(request);
+
+            ctx.writeAndFlush(response);
+            long costTime = System.currentTimeMillis() - startTime;
+
+
+            log.info("处理请求[{}{}]耗时：{}ms", request.getInterfaceName(), request.getMethodName(), costTime);
+            ServerTraceInterceptor.afterHandle(request.getMethodName());
+        }
     }
 
     @Override
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
-        cause.printStackTrace();
+        log.error("处理请求时发生异常: ", cause);
         ctx.close();
     }
 
@@ -57,15 +65,11 @@ public class NettyServerHandler extends SimpleChannelInboundHandler<RpcRequest> 
 
         // 得到服务名
         String interfaceName = rpcRequest.getInterfaceName();
-
         RateLimit rateLimit = serviceProvider.getRateLimitProvider().getRateLimit(interfaceName);
-
         if (!rateLimit.getToken()) {
-//            System.out.println(interfaceName + "被限流");
             log.warn(interfaceName + "被限流");
-            return RpcResponse.fail();
+            return RpcResponse.fail("服务限流，接口 " + interfaceName + " 当前无法处理请求。请稍后再试。");
         }
-
         // 得到服务端相应服务实现类
         Object service = serviceProvider.getService(interfaceName);
         // 反射调用方法
@@ -75,10 +79,8 @@ public class NettyServerHandler extends SimpleChannelInboundHandler<RpcRequest> 
             Object invoke = method.invoke(service, rpcRequest.getParams());
             return RpcResponse.success(invoke);
         } catch (NoSuchMethodException | IllegalAccessException | InvocationTargetException e) {
-            e.printStackTrace();
-//            System.out.println("方法执行错误");
-            log.warn(interfaceName + "被限流");
-            return RpcResponse.fail();
+            log.error("方法执行错误，接口: {}, 方法: {}", interfaceName, rpcRequest.getMethodName(), e);
+            return RpcResponse.fail("方法执行错误");
         }
     }
 }

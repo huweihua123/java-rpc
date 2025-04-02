@@ -1,5 +1,7 @@
-package com.weihua.trace;
+package com.weihua.trace.interceptor;
 
+import com.weihua.trace.TraceIdGenerator;
+import com.weihua.trace.ZipkinReporter;
 import common.trace.TraceContext;
 
 public class ClientTraceInterceptor {

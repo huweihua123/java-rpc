@@ -2,7 +2,7 @@ package com.weihua.server.provider;
 
 import com.weihua.server.rateLimit.provider.RateLimitProvider;
 import com.weihua.server.serviceCenter.ServiceRegister;
-import com.weihua.server.serviceCenter.impl.ZkServiceRegisterImpl;
+import com.weihua.server.serviceCenter.impl.ConsulServiceRegisterImpl;
 
 import java.net.InetSocketAddress;
 import java.util.HashMap;
@@ -23,7 +23,8 @@ public class ServiceProvider {
         this.host = host;
         this.port = port;
         this.interfaceProvider = new HashMap<>();
-        this.serviceRegister = new ZkServiceRegisterImpl();
+//        this.serviceRegister = new ZkServiceRegisterImpl();
+        this.serviceRegister = new ConsulServiceRegisterImpl();
         this.rateLimitProvider = new RateLimitProvider();
     }
 
@@ -32,7 +33,7 @@ public class ServiceProvider {
         for (Class<?> clazz : interfaces) {
 
             interfaceProvider.put(clazz.getName(), service);
-            serviceRegister.register(clazz.getName(), new InetSocketAddress(host, port));
+            serviceRegister.register(clazz, new InetSocketAddress(host, port));
         }
     }
 

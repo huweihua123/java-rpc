@@ -4,6 +4,9 @@ import common.message.RpcResponse;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.util.AttributeKey;
+import lombok.extern.log4j.Log4j2;
+
+@Log4j2
 public class NettyClientHandler extends SimpleChannelInboundHandler<RpcResponse> {
     @Override
     protected void channelRead0(ChannelHandlerContext ctx, RpcResponse response) throws Exception {
@@ -14,7 +17,7 @@ public class NettyClientHandler extends SimpleChannelInboundHandler<RpcResponse>
 
     @Override
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
-        cause.printStackTrace();
+        log.error("Channel exception occurred", cause);
         ctx.close();
     }
 }

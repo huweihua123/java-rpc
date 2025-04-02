@@ -1,11 +1,12 @@
 package com.weihua.server.serviceCenter.impl;
 
-import com.weihua.annotation.Retryable;
-import com.weihua.server.serviceCenter.ServiceRegister;
-import com.orbitz.consul.Consul;
 import com.orbitz.consul.AgentClient;
+import com.orbitz.consul.Consul;
+import com.orbitz.consul.model.agent.ImmutableRegCheck;
 import com.orbitz.consul.model.agent.ImmutableRegistration;
 import com.orbitz.consul.model.agent.Registration;
+import com.weihua.annotation.Retryable;
+import com.weihua.server.serviceCenter.ServiceRegister;
 import lombok.extern.log4j.Log4j2;
 
 import java.lang.reflect.Method;
@@ -15,39 +16,22 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
 
 @Log4j2
 public class ConsulServiceRegisterImpl implements ServiceRegister {
     private static final String RETRY_TAG = "Retryable";
+    // 存储已注册的服务ID
+    private final Map<String, String> registeredServices = new ConcurrentHashMap<>();
     private Consul consulClient;
     private AgentClient agentClient;
-    // 存储已注册的服务ID，用于发送心跳
-    private final Map<String, String> registeredServices = new ConcurrentHashMap<>();
-    // 用于发送心跳的定时执行器
-    private final ScheduledExecutorService heartbeatExecutor;
 
     public ConsulServiceRegisterImpl() {
         // 初始化Consul客户端，连接到本地Consul代理 - 添加超时配置
-        this.consulClient = Consul.builder()
-                .withUrl("http://localhost:8500")
-                .withReadTimeoutMillis(20000) // 设置读取超时为20秒
+        this.consulClient = Consul.builder().withUrl("http://localhost:8500").withReadTimeoutMillis(20000) // 设置读取超时为20秒
                 .withConnectTimeoutMillis(10000) // 连接超时
                 .withWriteTimeoutMillis(10000) // 写入超时
                 .build();
         this.agentClient = consulClient.agentClient();
-
-        // 初始化心跳执行器
-        this.heartbeatExecutor = Executors.newSingleThreadScheduledExecutor(r -> {
-            Thread t = new Thread(r, "consul-heartbeat-sender");
-            t.setDaemon(true);
-            return t;
-        });
-
-        // 启动心跳任务，每15秒发送一次心跳（TTL为30秒，一般设置为TTL的一半）
-        heartbeatExecutor.scheduleAtFixedRate(this::sendHeartbeat, 0, 15, TimeUnit.SECONDS);
     }
 
     @Override
@@ -66,27 +50,23 @@ public class ConsulServiceRegisterImpl implements ServiceRegister {
                 meta.put("retryable-" + i, retryableMethods.get(i));
             }
 
-            // 创建服务检查 - 设置TTL为30秒
-            Registration.RegCheck check = Registration.RegCheck.ttl(30L);
-
+            // 创建TCP健康检查 - 更适合Netty服务
+            Registration.RegCheck check = ImmutableRegCheck.builder()
+                    .tcp(serviceAddress.getHostName() + ":" + serviceAddress.getPort())
+                    .interval("10s")
+                    .timeout("5s")
+                    .deregisterCriticalServiceAfter("30s")
+                    .build();
             // 创建注册信息
-            Registration service = ImmutableRegistration.builder()
-                    .id(serviceId)
-                    .name(serviceName)
-                    .address(serviceAddress.getHostName())
-                    .port(serviceAddress.getPort())
-                    .check(check)
-                    .meta(meta)
+            Registration service = ImmutableRegistration.builder().id(serviceId).name(serviceName)
+                    .address(serviceAddress.getHostName()).port(serviceAddress.getPort()).check(check).meta(meta)
                     .build();
 
             // 注册服务
             agentClient.register(service);
 
-            // 将服务ID添加到已注册的服务集合中，用于后续心跳发送
+            // 将服务ID添加到已注册的服务集合中
             registeredServices.put(serviceId, serviceName);
-
-            // 立即将服务标记为通过
-            agentClient.pass(serviceId);
 
             log.info("服务注册成功，服务名：{}，服务地址：{}", serviceName, getServiceAddress(serviceAddress));
         } catch (Exception e) {
@@ -95,36 +75,19 @@ public class ConsulServiceRegisterImpl implements ServiceRegister {
     }
 
     /**
-     * 定期发送心跳到Consul
-     */
-    private void sendHeartbeat() {
-        if (registeredServices.isEmpty()) {
-            return;
-        }
-
-        for (String serviceId : registeredServices.keySet()) {
-            try {
-                agentClient.pass(serviceId);
-                log.debug("发送心跳成功，服务ID：{}", serviceId);
-            } catch (Exception e) {
-                log.warn("发送心跳失败，服务ID：{}，错误信息：{}", serviceId, e.getMessage());
-            }
-        }
-    }
-
-    /**
      * 关闭资源
      */
     public void shutdown() {
-        heartbeatExecutor.shutdown();
-        try {
-            if (!heartbeatExecutor.awaitTermination(5, TimeUnit.SECONDS)) {
-                heartbeatExecutor.shutdownNow();
+        // 注销所有服务
+        for (String serviceId : registeredServices.keySet()) {
+            try {
+                agentClient.deregister(serviceId);
+                log.info("服务注销成功，服务ID：{}", serviceId);
+            } catch (Exception e) {
+                log.error("服务注销失败，服务ID：{}，错误信息：{}", serviceId, e.getMessage(), e);
             }
-        } catch (InterruptedException e) {
-            heartbeatExecutor.shutdownNow();
-            Thread.currentThread().interrupt();
         }
+        registeredServices.clear();
     }
 
     private String getServiceAddress(InetSocketAddress serverAddress) {
@@ -136,6 +99,7 @@ public class ConsulServiceRegisterImpl implements ServiceRegister {
         return "consul";
     }
 
+    // 保持现有方法不变
     private List<String> getRetryableMethod(Class<?> clazz) {
         List<String> retryableMethods = new ArrayList<>();
         for (Method method : clazz.getDeclaredMethods()) {
