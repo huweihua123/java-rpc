@@ -1,7 +1,7 @@
 /*
  * @Author: weihua hu
  * @Date: 2025-03-20 20:02:05
- * @LastEditTime: 2025-04-02 23:48:13
+ * @LastEditTime: 2025-04-03 15:37:13
  * @LastEditors: weihua hu
  * @Description:
  */
@@ -43,14 +43,38 @@ public class NettyServerHandler extends SimpleChannelInboundHandler<RpcRequest> 
         if (request.getType() == RequestType.NORMAL) {
             ServerTraceInterceptor.beforeHandle();
 
-            long startTime = System.currentTimeMillis();
-            RpcResponse response = getResponse(request);
+            boolean success = false;
+            String errorMessage = null;
+            RpcResponse response = null;
 
-            ctx.writeAndFlush(response);
-            long costTime = System.currentTimeMillis() - startTime;
+            try {
+                response = getResponse(request);
 
-            log.info("处理请求[{}{}]耗时：{}ms", request.getInterfaceName(), request.getMethodName(), costTime);
-            ServerTraceInterceptor.afterHandle(request.getMethodName());
+                if (response != null) {
+                    response.setRequestId(request.getRequestId());
+                }
+
+                // 判断调用是否成功
+                success = response != null && response.getCode() == 200;
+                if (!success && response != null) {
+                    errorMessage = response.getMessage();
+                }
+            } catch (Exception e) {
+                success = false;
+                errorMessage = e.getClass().getName() + ": " + e.getMessage();
+                log.error("处理请求时发生异常", e);
+                // 创建错误响应对象，而不是抛出异常
+                response = RpcResponse.fail("服务端处理异常: " + errorMessage, request.getRequestId());
+            } finally {
+                // 确保始终发送响应
+                if (response != null) {
+                    ctx.writeAndFlush(response);
+                } else {
+                    ctx.writeAndFlush(RpcResponse.fail("服务端未知错误", request.getRequestId()));
+                }
+                // 更新链路追踪，添加成功状态和错误信息
+                ServerTraceInterceptor.afterHandle(request.getMethodName(), success, errorMessage);
+            }
         }
     }
 
@@ -66,8 +90,11 @@ public class NettyServerHandler extends SimpleChannelInboundHandler<RpcRequest> 
         String interfaceName = rpcRequest.getInterfaceName();
         RateLimit rateLimit = serviceProvider.getRateLimitProvider().getRateLimit(interfaceName);
         if (!rateLimit.getToken()) {
-            log.warn(interfaceName + "被限流");
-            return RpcResponse.fail("服务限流，接口 " + interfaceName + " 当前无法处理请求。请稍后再试。");
+            RpcResponse rpcResponse = RpcResponse.fail("服务限流，接口 " + interfaceName + " 当前无法处理请求。请稍后再试。", rpcRequest.getRequestId());
+            log.warn(interfaceName + "被限流" + rpcResponse);
+
+            return rpcResponse;
+//            return RpcResponse.fail("服务限流，接口 " + interfaceName + " 当前无法处理请求。请稍后再试。",rpcRequest.getRequestId());
         }
         // 得到服务端相应服务实现类
         Object service = serviceProvider.getService(interfaceName);
@@ -76,7 +103,7 @@ public class NettyServerHandler extends SimpleChannelInboundHandler<RpcRequest> 
         try {
             method = service.getClass().getMethod(rpcRequest.getMethodName(), rpcRequest.getParamTypes());
             Object invoke = method.invoke(service, rpcRequest.getParams());
-            return RpcResponse.success(invoke, rpcRequest.getRequestId());
+            return RpcResponse.success(invoke);
         } catch (NoSuchMethodException | IllegalAccessException | InvocationTargetException e) {
             log.error("方法执行错误，接口: {}, 方法: {}", interfaceName, rpcRequest.getMethodName(), e);
             return RpcResponse.fail("方法执行错误");

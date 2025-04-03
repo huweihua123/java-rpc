@@ -22,7 +22,7 @@
     </Appenders>
 
     <Loggers>
-        <Root level="INFO">
+        <Root level="debug">
             <AppenderRef ref="Console"/>
             <AppenderRef ref="ModuleFile"/>
         </Root>

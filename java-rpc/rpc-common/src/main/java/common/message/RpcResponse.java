@@ -1,7 +1,7 @@
 /*
  * @Author: weihua hu
  * @Date: 2025-03-21 01:14:21
- * @LastEditTime: 2025-04-02 23:47:05
+ * @LastEditTime: 2025-04-03 15:19:24
  * @LastEditors: weihua hu
  * @Description: 
  */
@@ -39,5 +39,9 @@ public class RpcResponse implements Serializable {
 
     public static RpcResponse fail(String msg) {
         return RpcResponse.builder().code(500).message(msg).build();
+    }
+
+    public static RpcResponse fail(String msg, String requestId) {
+        return RpcResponse.builder().requestId(requestId).code(500).message(msg).build();
     }
 }

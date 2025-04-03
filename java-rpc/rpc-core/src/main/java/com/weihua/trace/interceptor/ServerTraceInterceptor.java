@@ -1,3 +1,10 @@
+/*
+ * @Author: weihua hu
+ * @Date: 2025-04-01 13:38:57
+ * @LastEditTime: 2025-04-03 15:05:30
+ * @LastEditors: weihua hu
+ * @Description: 
+ */
 package com.weihua.trace.interceptor;
 
 import com.weihua.trace.TraceIdGenerator;
@@ -18,12 +25,11 @@ public class ServerTraceInterceptor {
         TraceContext.setStartTimestamp(String.valueOf(startTimestamp));
     }
 
-    public static void afterHandle(String serviceName) {
+    public static void afterHandle(String serviceName, boolean success, String errorMessage) {
         long endTimestamp = System.currentTimeMillis();
         long startTimestamp = Long.valueOf(TraceContext.getStartTimestamp());
         long duration = endTimestamp - startTimestamp;
 
-        // 上报服务端 Span
         ZipkinReporter.reportSpan(
                 TraceContext.getTraceId(),
                 TraceContext.getSpanId(),
@@ -32,10 +38,11 @@ public class ServerTraceInterceptor {
                 startTimestamp,
                 duration,
                 serviceName,
-                "server"
+                "server",
+                success, // 添加成功状态
+                errorMessage // 添加错误信息
         );
 
-        // 清理 TraceContext
         TraceContext.clear();
     }
 }

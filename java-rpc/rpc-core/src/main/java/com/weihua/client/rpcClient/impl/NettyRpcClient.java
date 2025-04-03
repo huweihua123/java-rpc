@@ -7,6 +7,8 @@ import com.weihua.client.rpcClient.RpcClient;
 import com.weihua.client.serverCenter.ServiceCenter;
 import com.weihua.client.serverCenter.impl.ConsulServiceCenter;
 import com.weihua.client.util.RpcFutureManager;
+import com.weihua.trace.RequestTraceContextManager;
+
 import common.message.RpcRequest;
 import common.message.RpcResponse;
 import common.trace.TraceContext;
@@ -72,28 +74,23 @@ public class NettyRpcClient implements RpcClient {
     @Override
     public RpcResponse sendRequest(RpcRequest request) {
         Map<String, String> mdcContextMap = TraceContext.getCopy();
-        long startTime = System.currentTimeMillis();
+
+        // 使用RequestTraceContextManager存储上下文
+        RequestTraceContextManager.setTraceContext(request.getRequestId(), mdcContextMap);
 
         InetSocketAddress address = serviceCenter.serviceDiscovery(request);
-        log.info("服务发现完成，耗时 {}ms", System.currentTimeMillis() - startTime);
 
         try {
             // 从连接池获取或创建连接（会根据最大连接数自动判断）
-            long connectStart = System.currentTimeMillis();
             Channel channel = channelPool.getOrCreateChannel(address);
-            log.info("获取连接耗时 {}ms，当前连接数：{}/{}",
-                    System.currentTimeMillis() - connectStart,
-                    channelPool.getConnectionCount(address),
-                    channelPool.getMaxConnections(address));
 
-            channel.attr(MDCChannelHandler.TRACE_CONTEXT_KEY).set(mdcContextMap);
+            // channel.attr(MDCChannelHandler.TRACE_CONTEXT_KEY).set(mdcContextMap);
 
             // 设置异步响应处理
             CompletableFuture<RpcResponse> responseFuture = new CompletableFuture<>();
             RpcFutureManager.putFuture(request.getRequestId(), responseFuture);
 
             // 异步发送请求
-            long sendStart = System.currentTimeMillis();
             ChannelFuture writeFuture = channel.writeAndFlush(request);
 
             // 添加写操作监听器
@@ -108,32 +105,27 @@ public class NettyRpcClient implements RpcClient {
                 }
             });
 
-            log.info("请求发送耗时 {}ms", System.currentTimeMillis() - sendStart);
-
-            // 异步等待响应（可以设置超时）
-            long waitStart = System.currentTimeMillis();
             RpcResponse response = responseFuture.get(DEFAULT_REQUEST_TIMEOUT_SECONDS, TimeUnit.SECONDS);
-            log.info("等待响应耗时 {}ms", System.currentTimeMillis() - waitStart);
-
-            // 处理结果
-            log.info("收到响应:{}", response);
-            log.debug("总耗时 {}ms", System.currentTimeMillis() - startTime);
 
             return response;
         } catch (TimeoutException e) {
             log.error("请求超时: {}", e.getMessage());
             RpcFutureManager.removeFuture(request.getRequestId());
+            RequestTraceContextManager.removeTraceContext(request.getRequestId());
             return RpcResponse.fail("请求超时");
         } catch (InterruptedException e) {
             log.error("请求被中断: {}", e.getMessage());
             Thread.currentThread().interrupt();
             RpcFutureManager.removeFuture(request.getRequestId());
+            RequestTraceContextManager.removeTraceContext(request.getRequestId());
         } catch (ExecutionException e) {
             log.error("执行异常: {}", e.getCause().getMessage());
             RpcFutureManager.removeFuture(request.getRequestId());
+            RequestTraceContextManager.removeTraceContext(request.getRequestId());
         } catch (Exception e) {
             log.error("发送请求异常: {}", e.getMessage());
             RpcFutureManager.removeFuture(request.getRequestId());
+            RequestTraceContextManager.removeTraceContext(request.getRequestId());
         }
 
         return RpcResponse.fail("请求失败");

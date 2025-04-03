@@ -22,15 +22,15 @@ public class ConsumerTest {
     private static final ExecutorService executorService = Executors.newFixedThreadPool(THREAD_POOL_SIZE);
 
     public static void main(String[] args) throws InterruptedException {
-        
+
         ClientProxy clientProxy = new ClientProxy();
 
         UserService proxy = clientProxy.getProxy(UserService.class);
 
         for (int i = 0; i < 100; i++) {
             final Integer i1 = i;
-            if (i % 30 == 0) {
-                Thread.sleep(1000);
+            if (i % 100 == 0) {
+                Thread.sleep(1);
             }
 
             executorService.submit(() -> {

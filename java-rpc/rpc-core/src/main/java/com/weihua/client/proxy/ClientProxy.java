@@ -48,7 +48,9 @@ public class ClientProxy implements InvocationHandler {
             log.warn("熔断器开启，请求被拒绝: {}", rpcRequest);
             return null;
         }
-        RpcResponse rpcResponse;
+        boolean success = false;
+        String errorMessage = null;
+        RpcResponse rpcResponse = null;
 
         String methodSignature = getMethodSignature(rpcRequest.getInterfaceName(), method);
         log.info("方法签名: " + methodSignature);
@@ -69,16 +71,22 @@ public class ClientProxy implements InvocationHandler {
             rpcResponse = rpcClient.sendRequest(rpcRequest);
         }
 
-        if (rpcResponse != null) {
-            if (rpcResponse.getCode() == 200) {
+        try {
+            if (rpcResponse != null && rpcResponse.getCode() == 200) {
+                success = true;
                 circuitBreaker.recordSuccess();
-            } else {
+            } else if (rpcResponse != null) {
                 circuitBreaker.recordFailure();
+                errorMessage = "错误码: " + rpcResponse.getCode() + ", 消息: " + rpcResponse.getMessage();
             }
+        } catch (Exception e) {
+            errorMessage = e.getClass().getName() + ": " + e.getMessage();
+            // throw e;
+        } finally {
+            ClientTraceInterceptor.afterInvoke(method.getName(), success, errorMessage);
         }
-        log.info("收到响应: {} 状态码: {}", rpcRequest.getInterfaceName(), rpcResponse.getCode());
 
-        ClientTraceInterceptor.afterInvoke(method.getName());
+        log.info("收到响应: {} 状态码: {}", rpcRequest.getInterfaceName(), rpcResponse.getCode());
         return rpcResponse != null ? rpcResponse.getData() : null;
     }
 

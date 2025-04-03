@@ -31,21 +31,29 @@ public class JsonSerializer implements Serializer {
                 }
                 obj = request;
                 break;
-            case 1:
+            case 1: // 处理RpcResponse
                 RpcResponse response = JSONObject.parseObject(bytes, RpcResponse.class);
-                if (response.getDatatype() == null) {
-                    obj = RpcResponse.fail("类型为空");
-                    break;
-                }
 
-                if (response.getData() != null
-                        && !response.getData().getClass().isAssignableFrom(response.getDatatype())) {
+                // 记录接收到的响应信息，帮助调试
+                log.debug("反序列化RpcResponse: requestId={}, code={}, message={}",
+                        response.getRequestId(), response.getCode(),
+                        response.getMessage() != null && response.getMessage().length() > 50
+                                ? response.getMessage().substring(0, 50) + "..."
+                                : response.getMessage());
+
+                // 移除错误的datatype判断，datatype为null是合法的
+                // 例如：错误响应、void方法、限流响应等不需要返回数据
+
+                // 只有在需要处理响应数据时才进行类型转换
+                if (response.getData() != null && response.getDatatype() != null &&
+                        !response.getData().getClass().isAssignableFrom(response.getDatatype())) {
                     response.setData(JSONObject.toJavaObject((JSONObject) response.getData(), response.getDatatype()));
                 }
+
                 obj = response;
                 break;
             default:
-//                System.out.println("暂不支持此种类型消息");
+                // System.out.println("暂不支持此种类型消息");
                 log.error("暂不支持此种类型消息");
                 throw new RuntimeException();
         }

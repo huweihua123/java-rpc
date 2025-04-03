@@ -14,7 +14,7 @@ public class RateLimitProvider {
         if (rateLimitMap.containsKey(interfaceTime)) {
             return rateLimitMap.get(interfaceTime);
         }
-        RateLimit rateLimit = new TokenBucketRateLimitImpl(1, 10);
+        RateLimit rateLimit = new TokenBucketRateLimitImpl(5, 100);
         rateLimitMap.put(interfaceTime, rateLimit);
         return rateLimit;
     }
