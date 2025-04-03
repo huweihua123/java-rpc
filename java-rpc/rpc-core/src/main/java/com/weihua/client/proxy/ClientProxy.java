@@ -56,15 +56,16 @@ public class ClientProxy implements InvocationHandler {
 
         if (serviceCenter.checkRetry(inetSocketAddress, methodSignature)) {
             try {
-                log.info("尝试重试调用服务: {}", methodSignature);
+                log.info("调用幂等方法 {}, 使用支持重试的调用模式", methodSignature);
                 GuavaRetry guavaRetry = new GuavaRetry();
                 rpcResponse = guavaRetry.sendServiceWithRetry(rpcRequest, rpcClient);
             } catch (Exception e) {
-                log.error("重试调用失败: {}", methodSignature, e);
+                log.error("调用幂等方法 {} 最终失败, 所有重试均未成功", methodSignature, e);
                 circuitBreaker.recordFailure();
                 throw e; // 将异常抛给调用者
             }
         } else {
+            log.info("调用非幂等方法 {}, 使用不重试的调用模式", methodSignature);
             rpcResponse = rpcClient.sendRequest(rpcRequest);
         }
 
