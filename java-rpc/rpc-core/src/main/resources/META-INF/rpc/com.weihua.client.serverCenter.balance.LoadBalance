@@ -1,0 +1,17 @@
+# 负载均衡策略配置
+# 使用方式: 配置 rpc.loadbalance=consistentHash/random/roundRobin 来选择负载均衡策略
+
+# 一致性哈希 - 相同参数请求会路由到相同服务器，适合有状态服务
+consistentHash=com.weihua.client.serverCenter.balance.impl.ConsistencyHashBalance
+
+# 随机 - 完全随机选择服务实例，简单高效
+# random=com.weihua.client.serverCenter.balance.impl.RandomLoadBalance
+
+# 轮询 - 依次选择服务实例，确保请求平均分配
+# roundRobin=com.weihua.client.serverCenter.balance.impl.RoundRobinLoadBalance
+
+# 最少活跃连接 - 选择当前活跃请求数最少的实例
+# leastActive=com.weihua.client.serverCenter.balance.impl.LeastActiveLoadBalance
+
+# 加权随机 - 根据权重随机选择
+# weightedRandom=com.weihua.client.serverCenter.balance.impl.WeightedRandomLoadBalance

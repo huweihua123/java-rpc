@@ -6,10 +6,10 @@ import com.weihua.client.retry.GuavaRetry;
 import com.weihua.client.rpcClient.RpcClient;
 import com.weihua.client.rpcClient.impl.NettyRpcClient;
 import com.weihua.client.serverCenter.ServiceCenter;
-import com.weihua.client.serverCenter.impl.ConsulServiceCenter;
 import com.weihua.trace.interceptor.ClientTraceInterceptor;
 import common.message.RpcRequest;
 import common.message.RpcResponse;
+import common.spi.ExtensionLoader;
 import lombok.extern.log4j.Log4j2;
 
 import java.lang.reflect.InvocationHandler;
@@ -24,17 +24,33 @@ public class ClientProxy implements InvocationHandler {
     private ServiceCenter serviceCenter;
     private CircuitBreakerProvider circuitBreakerProvider;
 
+    // public ClientProxy() {
+    // this.rpcClient = new NettyRpcClient();
+    // // this.serviceCenter = new ZkServiceCenter();
+    // this.serviceCenter = ConsulServiceCenter.getInstance();
+    // this.circuitBreakerProvider = new CircuitBreakerProvider();
+    // }
+
+    // public ClientProxy(ServiceCenter serviceCenter) {
+    // this.serviceCenter = ConsulServiceCenter.getInstance();
+    // this.rpcClient = new NettyRpcClient(serviceCenter); // 传入已有实例
+    // this.circuitBreakerProvider = new CircuitBreakerProvider();
+    // }
+
+    // 修改构造函数
     public ClientProxy() {
-        this.rpcClient = new NettyRpcClient();
-        // this.serviceCenter = new ZkServiceCenter();
-        this.serviceCenter = ConsulServiceCenter.getInstance();
-        this.circuitBreakerProvider = new CircuitBreakerProvider();
+        // 使用SPI加载服务中心实现
+        this.serviceCenter = ExtensionLoader.getExtensionLoader(ServiceCenter.class).getDefaultExtension();
+        this.rpcClient = new NettyRpcClient(serviceCenter);
+        this.circuitBreakerProvider = CircuitBreakerProvider.getInstance();
     }
 
-    public ClientProxy(ServiceCenter serviceCenter) {
-        this.serviceCenter = ConsulServiceCenter.getInstance();
-        this.rpcClient = new NettyRpcClient(serviceCenter); // 传入已有实例
-        this.circuitBreakerProvider = new CircuitBreakerProvider();
+    // 添加方法允许指定扩展名
+    public ClientProxy(String serviceCenterType) {
+        this.serviceCenter = ExtensionLoader.getExtensionLoader(ServiceCenter.class).getExtension(serviceCenterType);
+        this.rpcClient = new NettyRpcClient(serviceCenter);
+        this.circuitBreakerProvider = CircuitBreakerProvider.getInstance();
+
     }
 
     @Override
@@ -91,7 +107,7 @@ public class ClientProxy implements InvocationHandler {
     }
 
     public <T> T getProxy(Class<T> clazz) {
-        Object o = Proxy.newProxyInstance(clazz.getClassLoader(), new Class[] { clazz }, this);
+        Object o = Proxy.newProxyInstance(clazz.getClassLoader(), new Class[]{clazz}, this);
         return (T) o;
     }
 

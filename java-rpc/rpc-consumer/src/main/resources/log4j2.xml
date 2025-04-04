@@ -1,30 +1,68 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <Configuration status="WARN">
+    <Properties>
+        <Property name="LOG_PATTERN">%d{yyyy-MM-dd HH:mm:ss.SSS} [%t] %-5level %logger{36} - %msg%n</Property>
+        <Property name="LOG_BASE_DIR">${sys:log.base.dir:-${sys:user.dir}/logs}</Property>
+        <Property name="MODULE_NAME">rpc-consumer</Property>
+        <Property name="LOG_DIR">${LOG_BASE_DIR}/${MODULE_NAME}</Property>
+    </Properties>
+
     <Appenders>
         <!-- 控制台输出 -->
         <Console name="Console" target="SYSTEM_OUT">
-            <PatternLayout pattern="%d{HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"/>
+            <PatternLayout pattern="${LOG_PATTERN}"/>
         </Console>
 
-        <!-- 按模块输出到独立文件 -->
-        <RollingFile name="ModuleFile"
-                     fileName="/Users/huweihua/java/java-rpc/logs/rpc-consumer/app.log"
-                     filePattern="/Users/huweihua/java/java-rpc/logs/rpc-consumer/app-%d{yyyy-MM-dd}-%i.log">
-            <PatternLayout>
-                <pattern>%d{ISO8601} [%t] %-5level %logger{36} - %msg%n</pattern>
-            </PatternLayout>
+        <!-- 文件输出 -->
+        <RollingFile name="RollingFile" fileName="${LOG_DIR}/app.log"
+                     filePattern="${LOG_DIR}/app-%d{yyyy-MM-dd}-%i.log">
+            <PatternLayout pattern="${LOG_PATTERN}"/>
             <Policies>
                 <TimeBasedTriggeringPolicy interval="1" modulate="true"/>
-                <SizeBasedTriggeringPolicy size="100 MB"/>
+                <SizeBasedTriggeringPolicy size="10 MB"/>
             </Policies>
-            <DefaultRolloverStrategy max="10"/>
+            <DefaultRolloverStrategy max="20"/>
+        </RollingFile>
+        
+        <!-- 错误日志单独记录 -->
+        <RollingFile name="ErrorFile" fileName="${LOG_DIR}/error.log"
+                     filePattern="${LOG_DIR}/error-%d{yyyy-MM-dd}-%i.log">
+            <PatternLayout pattern="${LOG_PATTERN}"/>
+            <Policies>
+                <TimeBasedTriggeringPolicy interval="1" modulate="true"/>
+                <SizeBasedTriggeringPolicy size="10 MB"/>
+            </Policies>
+            <DefaultRolloverStrategy max="20"/>
+            <Filters>
+                <ThresholdFilter level="error" onMatch="ACCEPT" onMismatch="DENY"/>
+            </Filters>
         </RollingFile>
     </Appenders>
-
+    
     <Loggers>
-        <Root level="debug">
+        <Root level="info">
             <AppenderRef ref="Console"/>
-            <AppenderRef ref="ModuleFile"/>
+            <AppenderRef ref="RollingFile"/>
+            <AppenderRef ref="ErrorFile"/>
         </Root>
+        
+        <!-- 消费者特有日志配置 -->
+        <Logger name="com.weihua.client" level="debug" additivity="false">
+            <AppenderRef ref="Console"/>
+            <AppenderRef ref="RollingFile"/>
+            <AppenderRef ref="ErrorFile"/>
+        </Logger>
+        
+        <Logger name="com.weihua.consumer" level="info" additivity="false">
+            <AppenderRef ref="Console"/>
+            <AppenderRef ref="RollingFile"/>
+            <AppenderRef ref="ErrorFile"/>
+        </Logger>
+        
+        <!-- 第三方库日志级别 -->
+        <Logger name="io.netty" level="warn" additivity="false">
+            <AppenderRef ref="Console"/>
+            <AppenderRef ref="RollingFile"/>
+        </Logger>
     </Loggers>
 </Configuration>

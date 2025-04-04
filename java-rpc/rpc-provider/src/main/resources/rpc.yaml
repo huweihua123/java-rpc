@@ -1,0 +1,69 @@
+# RPC Provider配置文件
+
+# 应用基础配置
+application:
+  name: java-rpc-provider
+  owner: weihua
+  version: 1.0.0
+
+# 提供者配置
+provider:
+  # 服务器配置
+  host: auto
+  port: 9999
+  threads:
+    io: 8
+    worker: 200
+  connections:
+    max: 10000
+    idle-timeout: 300000
+  
+  # 服务注册配置
+  registry:
+    enable: true
+    dynamic: true
+    delay: 
+      enable: false
+      time: 5000
+  
+  # 日志和监控
+  metadata:
+    enable: true
+
+# 注册中心配置
+registry:
+  type: local  # consul, zookeeper, local
+  
+  # Consul配置
+  consul:
+    host: localhost
+    port: 8500
+    timeout: 10000
+    check:
+      interval: 10s
+      timeout: 5s
+    deregister-time: 30s
+  
+  # ZooKeeper配置
+  zookeeper:
+    address: 127.0.0.1:2181
+    session-timeout: 40000
+    connection-timeout: 10000
+    root-path: MyRPC
+
+# 序列化和传输
+serializer: json  # json, protostuff, kryo, hessian2, jdk
+
+# 心跳配置
+heartbeat:
+  reader-idle-time: 0
+  writer-idle-time: 8
+  all-idle-time: 0
+  time-unit: SECONDS
+
+# 服务列表
+services:
+  - interface: com.weihua.service.UserService
+    implementation: com.weihua.service.impl.UserServiceImpl
+    version: 1.0.0
+    group: default

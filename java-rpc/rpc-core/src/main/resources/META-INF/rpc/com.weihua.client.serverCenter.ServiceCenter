@@ -1,0 +1,11 @@
+# 服务发现中心实现配置
+# 使用方式: 配置 rpc.registry=consul/zookeeper/local 来选择服务发现中心
+
+# Consul服务发现实现
+consul=com.weihua.client.serverCenter.impl.ConsulServiceCenter
+
+# ZooKeeper服务发现实现
+zookeeper=com.weihua.client.serverCenter.impl.ZkServiceCenter
+
+# 本地服务发现实现（用于开发和测试）
+local=com.weihua.client.serverCenter.impl.LocalServiceCenter

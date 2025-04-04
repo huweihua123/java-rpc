@@ -1,26 +1,31 @@
 package com.weihua.client.circuitBreaker;
 
 import java.util.concurrent.atomic.AtomicInteger;
-
+import lombok.Getter;
 
 enum CircuitBreakerState {
-    //关闭，开启，半开启
+    // 关闭，开启，半开启
     CLOSED, OPEN, HALF_OPEN
 }
+
 public class CircuitBreaker {
     private volatile CircuitBreakerState state = CircuitBreakerState.CLOSED;
     private final AtomicInteger failureCount = new AtomicInteger(0);
     private final AtomicInteger successCount = new AtomicInteger(0);
     private final AtomicInteger requestCount = new AtomicInteger(0);
 
+    @Getter
     private final int failureThreshold;
+    @Getter
     private final double halfOpenSuccessRate;
+    @Getter
     private final long retryTimePeriod;
+    @Getter
     private final int maxHalfOpenRequests;
     private volatile long lastFailureTime = 0;
 
     public CircuitBreaker(int failureThreshold, double halfOpenSuccessRate,
-                          long retryTimePeriod, int maxHalfOpenRequests) {
+            long retryTimePeriod, int maxHalfOpenRequests) {
         this.failureThreshold = failureThreshold;
         this.halfOpenSuccessRate = halfOpenSuccessRate;
         this.retryTimePeriod = retryTimePeriod;
@@ -73,5 +78,40 @@ public class CircuitBreaker {
         failureCount.set(0);
         successCount.set(0);
         requestCount.set(0);
+    }
+
+    /**
+     * 获取熔断器当前状态
+     */
+    public CircuitBreakerState getState() {
+        return state;
+    }
+
+    /**
+     * 获取当前失败计数
+     */
+    public int getFailureCount() {
+        return failureCount.get();
+    }
+
+    /**
+     * 获取当前成功计数
+     */
+    public int getSuccessCount() {
+        return successCount.get();
+    }
+
+    /**
+     * 获取当前总请求计数
+     */
+    public int getRequestCount() {
+        return requestCount.get();
+    }
+
+    /**
+     * 获取上次失败时间
+     */
+    public long getLastFailureTime() {
+        return lastFailureTime;
     }
 }

@@ -31,7 +31,8 @@ public class ConsistencyHashBalance implements LoadBalance {
         hash += hash << 5;
 
         // 如果算出来的值为负数则取其绝对值
-        if (hash < 0) hash = Math.abs(hash);
+        if (hash < 0)
+            hash = Math.abs(hash);
         return hash;
     }
 

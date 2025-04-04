@@ -1,0 +1,11 @@
+# 服务注册中心实现配置
+# 使用方式: 配置 rpc.registry=consul/zookeeper/local 来选择注册中心
+
+# Consul服务注册实现
+consul=com.weihua.server.serviceCenter.impl.ConsulServiceRegisterImpl
+
+# ZooKeeper服务注册实现
+zookeeper=com.weihua.server.serviceCenter.impl.ZkServiceRegisterImpl
+
+# 本地服务注册实现（用于开发和测试）
+local=com.weihua.server.serviceCenter.impl.LocalServiceRegisterImpl

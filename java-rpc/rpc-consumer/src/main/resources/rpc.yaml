@@ -1,0 +1,68 @@
+# RPC Consumer配置文件
+
+# 应用基础配置
+application:
+  name: java-rpc-consumer
+  owner: weihua
+  version: 1.0.0
+
+# 消费者配置
+consumer:
+  # 调用配置
+  timeout: 3000
+  loadbalance: random  # random, roundrobin, consistenthash
+  failover-policy: failover  # failover, failfast, failsafe
+  generic-enable: false
+  
+  # 连接池配置
+  connection:
+    pool-enable: true
+    max-idle: 16
+    min-idle: 4
+    idle-timeout: 300000
+    retry: 3
+  
+  # 重试配置
+  retry:
+    enable: true
+    max-times: 3
+    interval: 1000
+    new-connection: false
+  
+  # 熔断配置
+  circuit-breaker:
+    failures: 5
+    error-rate: 0.5
+    window: 60
+    success-threshold: 3
+
+# 注册中心配置
+registry:
+  type: local  # consul, zookeeper, local
+  subscribe: true
+  
+  # Consul配置
+  consul:
+    host: localhost
+    port: 8500
+    timeout: 10000
+  
+  # ZooKeeper配置
+  zookeeper:
+    address: 127.0.0.1:2181
+    session-timeout: 40000
+    connection-timeout: 10000
+
+# 序列化和传输
+serializer: json  # json, protostuff, kryo, hessian2, jdk
+
+# 心跳配置
+heartbeat:
+  reader-idle-time: 0
+  writer-idle-time: 8
+  all-idle-time: 0
+  time-unit: SECONDS
+
+# 服务引用列表
+references:
+  - com.weihua.service.UserService

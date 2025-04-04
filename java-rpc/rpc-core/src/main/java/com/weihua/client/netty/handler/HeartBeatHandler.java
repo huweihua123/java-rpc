@@ -1,7 +1,7 @@
 /*
  * @Author: weihua hu
  * @Date: 2025-04-02 00:31:09
- * @LastEditTime: 2025-04-03 00:02:12
+ * @LastEditTime: 2025-04-04 20:57:21
  * @LastEditors: weihua hu
  * @Description: 
  */
@@ -17,16 +17,25 @@ import io.netty.handler.timeout.IdleStateEvent;
 import lombok.extern.log4j.Log4j2;
 
 import java.net.InetSocketAddress;
+import java.util.concurrent.TimeUnit;
 
 @Log4j2
 public class HeartBeatHandler extends ChannelDuplexHandler {
+
+    private final int writerIdleTime;
+    private final TimeUnit timeUnit;
+
+    public HeartBeatHandler(int writerIdleTime, TimeUnit timeUnit) {
+        this.writerIdleTime = writerIdleTime;
+        this.timeUnit = timeUnit;
+    }
 
     @Override
     public void userEventTriggered(ChannelHandlerContext ctx, Object evt) throws Exception {
         if (evt instanceof IdleStateEvent) {
             IdleStateEvent event = (IdleStateEvent) evt;
             if (event.state() == IdleState.WRITER_IDLE) {
-                log.info("超过8秒没有写数据，发送心跳包");
+                log.info("超过{}{}没有写数据，发送心跳包", writerIdleTime, timeUnit.name().toLowerCase());
                 sendHeartbeat(ctx);
             }
         } else {

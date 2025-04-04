@@ -1,0 +1,41 @@
+#==============================
+# 服务提供者配置文件
+#==============================
+# 此文件配置了需要暴露的RPC服务
+
+services:
+  # 用户服务
+  - interface: com.weihua.service.UserService            # 服务接口全限定名
+    implementation: com.weihua.service.impl.UserServiceImpl  # 接口实现类
+    version: 1.0.0                                       # 服务版本号
+    group: default                                       # 服务分组
+    weight: 100                                          # 服务权重(0-100)
+    delay: 0                                             # 暴露延迟(毫秒)
+    timeout: 5000                                        # 服务超时时间(毫秒)
+    retries: 2                                           # 最大重试次数
+    
+  # 订单服务示例（注释掉，需要时取消注释）
+  # - interface: com.weihua.service.OrderService
+  #   implementation: com.weihua.service.impl.OrderServiceImpl
+  #   version: 1.0.0
+  #   group: default
+  #   weight: 100
+  #   delay: 0
+  
+  # 产品服务示例（注释掉，需要时取消注释）
+  # - interface: com.weihua.service.ProductService
+  #   implementation: com.weihua.service.impl.ProductServiceImpl
+  #   version: 1.0.0
+  #   group: default
+  #   weight: 100
+  #   delay: 0
+
+# 服务配置说明：
+# interface: 服务接口的全限定类名
+# implementation: 服务实现类的全限定类名
+# version: 服务版本号，用于区分同一接口的不同实现版本
+# group: 服务分组，用于区分同一接口的不同实现分组
+# weight: 服务权重，用于负载均衡时的权重计算
+# delay: 服务延迟暴露时间(毫秒)，0表示立即暴露
+# timeout: 服务调用超时时间(毫秒)，覆盖全局设置
+# retries: 服务调用失败时的最大重试次数

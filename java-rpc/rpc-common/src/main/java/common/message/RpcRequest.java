@@ -1,7 +1,7 @@
 /*
  * @Author: weihua hu
  * @Date: 2025-03-21 01:14:21
- * @LastEditTime: 2025-04-02 23:02:59
+ * @LastEditTime: 2025-04-04 20:42:09
  * @LastEditors: weihua hu
  * @Description: 
  */
@@ -27,6 +27,18 @@ public class RpcRequest implements Serializable {
     private Class<?>[] paramTypes;
 
     public static RpcRequest heartBeat() {
-        return RpcRequest.builder().type(RequestType.HEARTBEAT).build();
+        // 使用更短的心跳ID格式，以区分普通请求
+        String heartbeatId = "heartbeat-" + System.currentTimeMillis();
+        return RpcRequest.builder()
+                .type(RequestType.HEARTBEAT)
+                .requestId(heartbeatId)
+                .build();
+    }
+
+    /**
+     * 判断请求是否为心跳请求
+     */
+    public boolean isHeartBeat() {
+        return RequestType.HEARTBEAT.equals(this.type);
     }
 }

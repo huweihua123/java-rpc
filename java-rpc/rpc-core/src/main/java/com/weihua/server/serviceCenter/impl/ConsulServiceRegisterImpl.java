@@ -6,7 +6,9 @@ import com.orbitz.consul.model.agent.ImmutableRegCheck;
 import com.orbitz.consul.model.agent.ImmutableRegistration;
 import com.orbitz.consul.model.agent.Registration;
 import com.weihua.annotation.Retryable;
+import com.weihua.client.config.RegistryConfigManager;
 import com.weihua.server.serviceCenter.ServiceRegister;
+import common.config.ConfigRefreshManager;
 import lombok.extern.log4j.Log4j2;
 
 import java.lang.reflect.Method;
@@ -18,20 +20,114 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 @Log4j2
-public class ConsulServiceRegisterImpl implements ServiceRegister {
+public class ConsulServiceRegisterImpl implements ServiceRegister, ConfigRefreshManager.ConfigurableComponent {
     private static final String RETRY_TAG = "Retryable";
     // 存储已注册的服务ID
     private final Map<String, String> registeredServices = new ConcurrentHashMap<>();
     private Consul consulClient;
     private AgentClient agentClient;
 
+    // 配置参数
+    private String consulHost;
+    private int consulPort;
+    private int readTimeout;
+    private int connectTimeout;
+    private int writeTimeout;
+    private String checkInterval;
+    private String checkTimeout;
+    private String deregisterTime;
+
+    // 配置管理器
+    private final RegistryConfigManager configManager;
+
     public ConsulServiceRegisterImpl() {
-        // 初始化Consul客户端，连接到本地Consul代理 - 添加超时配置
-        this.consulClient = Consul.builder().withUrl("http://localhost:8500").withReadTimeoutMillis(20000) // 设置读取超时为20秒
-                .withConnectTimeoutMillis(10000) // 连接超时
-                .withWriteTimeoutMillis(10000) // 写入超时
-                .build();
-        this.agentClient = consulClient.agentClient();
+        // 使用RegistryConfigManager代替ConfigurationManager
+        this.configManager = RegistryConfigManager.getInstance();
+
+        // 从配置管理器获取配置
+        loadConfig();
+
+        // 初始化Consul客户端
+        initConsulClient();
+
+        // 注册到配置刷新管理器
+        ConfigRefreshManager.getInstance().register(this);
+    }
+
+    /**
+     * 加载配置
+     */
+    private void loadConfig() {
+        // 从配置管理器获取Consul配置
+        this.consulHost = configManager.getConsulHost();
+        this.consulPort = configManager.getConsulPort();
+        this.readTimeout = configManager.getConsulTimeout();
+        this.connectTimeout = configManager.getConsulConnectTimeout();
+        this.writeTimeout = configManager.getConsulWriteTimeout();
+        this.checkInterval = configManager.getConsulCheckInterval();
+        this.checkTimeout = configManager.getConsulCheckTimeout();
+        this.deregisterTime = configManager.getConsulDeregisterTime();
+
+        log.info("Consul服务注册中心配置: {}:{}, 读取超时: {}ms, 连接超时: {}ms, 写入超时: {}ms, 检查间隔: {}, 检查超时: {}, 注销时间: {}",
+                consulHost, consulPort, readTimeout, connectTimeout, writeTimeout, checkInterval, checkTimeout,
+                deregisterTime);
+    }
+
+    /**
+     * 初始化Consul客户端
+     */
+    private void initConsulClient() {
+        try {
+            this.consulClient = Consul.builder()
+                    .withUrl(String.format("http://%s:%d", consulHost, consulPort))
+                    .withReadTimeoutMillis(readTimeout)
+                    .withConnectTimeoutMillis(connectTimeout)
+                    .withWriteTimeoutMillis(writeTimeout)
+                    .build();
+            this.agentClient = consulClient.agentClient();
+            log.info("Consul客户端初始化成功: {}:{}", consulHost, consulPort);
+        } catch (Exception e) {
+            log.error("Consul客户端初始化失败: {}:{}, 错误: {}", consulHost, consulPort, e.getMessage(), e);
+            throw new RuntimeException("Consul客户端初始化失败", e);
+        }
+    }
+
+    /**
+     * 刷新配置 - 实现ConfigurableComponent接口
+     */
+    @Override
+    public void refreshConfig() {
+        log.info("开始刷新Consul服务注册中心配置...");
+
+        // 保存当前配置用于对比
+        String oldHost = this.consulHost;
+        int oldPort = this.consulPort;
+        int oldReadTimeout = this.readTimeout;
+        int oldConnectTimeout = this.connectTimeout;
+        int oldWriteTimeout = this.writeTimeout;
+
+        // 重新加载配置
+        loadConfig();
+
+        // 检查是否需要重新创建客户端
+        boolean needRecreate = !this.consulHost.equals(oldHost)
+                || this.consulPort != oldPort
+                || this.readTimeout != oldReadTimeout
+                || this.connectTimeout != oldConnectTimeout
+                || this.writeTimeout != oldWriteTimeout;
+
+        if (needRecreate) {
+            log.info("Consul连接配置已变更，重新创建客户端");
+            initConsulClient();
+
+            // 重新注册所有服务
+            if (!registeredServices.isEmpty()) {
+                log.info("重新注册已有服务，数量: {}", registeredServices.size());
+                // 实际重新注册逻辑需要保存服务地址信息，这里只是示例
+            }
+        }
+
+        log.info("Consul服务注册中心配置刷新完成");
     }
 
     @Override
@@ -50,16 +146,22 @@ public class ConsulServiceRegisterImpl implements ServiceRegister {
                 meta.put("retryable-" + i, retryableMethods.get(i));
             }
 
-            // 创建TCP健康检查 - 更适合Netty服务
+            // 创建TCP健康检查 - 使用配置的参数
             Registration.RegCheck check = ImmutableRegCheck.builder()
                     .tcp(serviceAddress.getHostName() + ":" + serviceAddress.getPort())
-                    .interval("10s")
-                    .timeout("5s")
-                    .deregisterCriticalServiceAfter("30s")
+                    .interval(checkInterval)
+                    .timeout(checkTimeout)
+                    .deregisterCriticalServiceAfter(deregisterTime)
                     .build();
+
             // 创建注册信息
-            Registration service = ImmutableRegistration.builder().id(serviceId).name(serviceName)
-                    .address(serviceAddress.getHostName()).port(serviceAddress.getPort()).check(check).meta(meta)
+            Registration service = ImmutableRegistration.builder()
+                    .id(serviceId)
+                    .name(serviceName)
+                    .address(serviceAddress.getHostName())
+                    .port(serviceAddress.getPort())
+                    .check(check)
+                    .meta(meta)
                     .build();
 
             // 注册服务
@@ -77,6 +179,7 @@ public class ConsulServiceRegisterImpl implements ServiceRegister {
     /**
      * 关闭资源
      */
+    @Override
     public void shutdown() {
         // 注销所有服务
         for (String serviceId : registeredServices.keySet()) {

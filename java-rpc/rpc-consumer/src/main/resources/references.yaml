@@ -1,0 +1,4 @@
+# RPC服务引用配置
+references:
+  - com.weihua.service.UserService
+  # 可以添加更多服务引用

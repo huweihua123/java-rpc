@@ -1,16 +1,14 @@
 package com.weihua.client.rpcClient.impl;
 
-import com.weihua.client.netty.handler.MDCChannelHandler;
 import com.weihua.client.netty.nettyInitializer.NettyClientInitializer;
 import com.weihua.client.pool.ChannelPool;
 import com.weihua.client.rpcClient.RpcClient;
 import com.weihua.client.serverCenter.ServiceCenter;
-import com.weihua.client.serverCenter.impl.ConsulServiceCenter;
 import com.weihua.client.util.RpcFutureManager;
 import com.weihua.trace.RequestTraceContextManager;
-
 import common.message.RpcRequest;
 import common.message.RpcResponse;
+import common.spi.ExtensionLoader;
 import common.trace.TraceContext;
 import io.netty.bootstrap.Bootstrap;
 import io.netty.channel.Channel;
@@ -41,14 +39,24 @@ public class NettyRpcClient implements RpcClient {
     // 是否已经启动定期清理任务
     private volatile boolean cleanTaskStarted = false;
 
+    /**
+     * 使用SPI加载默认ServiceCenter实现的构造函数
+     */
     public NettyRpcClient() {
-        this(ConsulServiceCenter.getInstance());
+        // 使用SPI机制加载服务中心实现
+        this(ExtensionLoader.getExtensionLoader(ServiceCenter.class).getDefaultExtension());
     }
 
+    /**
+     * 使用指定ServiceCenter的构造函数
+     */
     public NettyRpcClient(ServiceCenter serviceCenter) {
         this(serviceCenter, DEFAULT_CONNECT_TIMEOUT_MILLIS);
     }
 
+    /**
+     * 使用指定ServiceCenter和连接超时时间的构造函数
+     */
     public NettyRpcClient(ServiceCenter serviceCenter, int connectTimeoutMillis) {
         this.serviceCenter = serviceCenter;
 
@@ -71,6 +79,15 @@ public class NettyRpcClient implements RpcClient {
         log.info("NettyRpcClient初始化完成，连接超时：{}ms", connectTimeoutMillis);
     }
 
+    /**
+     * 使用指定服务中心类型的构造函数
+     *
+     * @param serviceCenterType 服务中心类型名称
+     */
+    public NettyRpcClient(String serviceCenterType) {
+        this(ExtensionLoader.getExtensionLoader(ServiceCenter.class).getExtension(serviceCenterType));
+    }
+
     @Override
     public RpcResponse sendRequest(RpcRequest request) {
         Map<String, String> mdcContextMap = TraceContext.getCopy();
@@ -83,8 +100,6 @@ public class NettyRpcClient implements RpcClient {
         try {
             // 从连接池获取或创建连接（会根据最大连接数自动判断）
             Channel channel = channelPool.getOrCreateChannel(address);
-
-            // channel.attr(MDCChannelHandler.TRACE_CONTEXT_KEY).set(mdcContextMap);
 
             // 设置异步响应处理
             CompletableFuture<RpcResponse> responseFuture = new CompletableFuture<>();
@@ -106,7 +121,6 @@ public class NettyRpcClient implements RpcClient {
             });
 
             RpcResponse response = responseFuture.get(DEFAULT_REQUEST_TIMEOUT_SECONDS, TimeUnit.SECONDS);
-
             return response;
         } catch (TimeoutException e) {
             log.error("请求超时: {}", e.getMessage());

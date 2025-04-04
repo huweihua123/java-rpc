@@ -4,10 +4,11 @@ import com.orbitz.consul.Consul;
 import com.orbitz.consul.HealthClient;
 import com.orbitz.consul.model.health.ServiceHealth;
 import com.weihua.client.cache.ServiceCache;
+import com.weihua.client.config.RegistryConfigManager;
 import com.weihua.client.serverCenter.ServiceCenter;
 import com.weihua.client.serverCenter.balance.LoadBalance;
-import com.weihua.client.serverCenter.balance.impl.ConsistencyHashBalance;
 import common.message.RpcRequest;
+import common.spi.ExtensionLoader;
 import lombok.extern.log4j.Log4j2;
 
 import java.net.InetSocketAddress;
@@ -22,74 +23,152 @@ import java.util.concurrent.TimeUnit;
 @Log4j2
 public class ConsulServiceCenter implements ServiceCenter {
 
-    // 同步周期（秒）
-    private static final int SYNC_PERIOD_SECONDS = 30;
     // 单例实例
     private static volatile ConsulServiceCenter instance;
-    private final Consul consulClient;
-    private final String consulHost;
-    private final int consulPort;
-    private final LoadBalance loadBalance;
+    private Consul consulClient;
+    private String consulHost;
+    private int consulPort;
+    private LoadBalance loadBalance;
     // 添加本地缓存引用
     private final ServiceCache serviceCache;
     // 定时同步任务
-    private final ScheduledExecutorService scheduledExecutor;
+    private ScheduledExecutorService scheduledExecutor;
     // 存储可重试方法的缓存
     private final Map<String, List<String>> retryableMethodsCache = new ConcurrentHashMap<>();
+    // 同步周期（秒）
+    private int syncPeriodSeconds;
+    // 配置管理器
+    private final RegistryConfigManager configManager;
 
-    // 将构造函数改为私有
-    private ConsulServiceCenter(String host, int port) {
-        this.consulHost = host;
-        this.consulPort = port;
-        // 使用Orbitz的Consul客户端库
+    /**
+     * 提供给SPI机制使用的无参构造函数
+     */
+    public ConsulServiceCenter() {
+        // 使用注册中心配置管理器
+        this.configManager = RegistryConfigManager.getInstance();
+
+        // 从配置管理器中获取配置
+        this.consulHost = configManager.getConsulHost();
+        this.consulPort = configManager.getConsulPort();
+        int timeout = configManager.getConsulTimeout();
+        this.syncPeriodSeconds = configManager.getConsulSyncPeriod();
+
+        log.info("初始化Consul服务中心: {}:{}, 超时: {}ms, 同步周期: {}秒",
+                consulHost, consulPort, timeout, syncPeriodSeconds);
+
+        // 初始化Consul客户端
         this.consulClient = Consul.builder()
-                .withUrl(String.format("http://%s:%d", host, port))
-                .withReadTimeoutMillis(20000)
-                .withConnectTimeoutMillis(10000)
-                .withWriteTimeoutMillis(10000)
+                .withUrl(String.format("http://%s:%d", consulHost, consulPort))
+                .withReadTimeoutMillis(timeout)
+                .withConnectTimeoutMillis(configManager.getConsulConnectTimeout())
+                .withWriteTimeoutMillis(configManager.getConsulWriteTimeout())
                 .build();
-        // 使用一致性哈希负载均衡
-        this.loadBalance = new ConsistencyHashBalance();
+
+        // 使用SPI机制获取负载均衡实现
+        String loadBalanceStrategy = configManager.getLoadBalanceStrategy();
+        this.loadBalance = ExtensionLoader
+                .getExtensionLoader(LoadBalance.class)
+                .getExtension(loadBalanceStrategy);
+        log.info("使用负载均衡策略: {}", loadBalanceStrategy);
+
         // 初始化本地缓存
         this.serviceCache = new ServiceCache();
+
         // 初始化定时任务线程池
+        initScheduler();
+
+        // 启动定时同步任务
+        startSyncTask(this.syncPeriodSeconds);
+    }
+
+    /**
+     * 初始化调度器
+     */
+    private void initScheduler() {
         this.scheduledExecutor = Executors.newSingleThreadScheduledExecutor(r -> {
             Thread t = new Thread(r, "consul-sync-thread");
             t.setDaemon(true);
             return t;
         });
-        // 启动定时同步任务
-        startSyncTask();
     }
 
-    // 获取单例实例的方法
-    public static ConsulServiceCenter getInstance(String host, int port) {
+    /**
+     * 获取单例实例
+     */
+    public static ConsulServiceCenter getInstance() {
         if (instance == null) {
             synchronized (ConsulServiceCenter.class) {
                 if (instance == null) {
-                    instance = new ConsulServiceCenter(host, port);
+                    instance = new ConsulServiceCenter();
                 }
             }
         }
         return instance;
     }
 
-    // 提供默认参数的获取实例方法
-    public static ConsulServiceCenter getInstance() {
-        return getInstance("localhost", 8500);
+    /**
+     * 刷新配置
+     */
+    public void refreshConfig() {
+        // 从配置管理器获取最新配置
+        String newHost = configManager.getConsulHost();
+        int newPort = configManager.getConsulPort();
+        int timeout = configManager.getConsulTimeout();
+
+        // 如果地址或端口变更，需要重新创建客户端
+        if (!newHost.equals(consulHost) || newPort != consulPort) {
+            log.info("Consul地址变更: {}:{} -> {}:{}", consulHost, consulPort, newHost, newPort);
+            this.consulHost = newHost;
+            this.consulPort = newPort;
+
+            // 重新创建客户端
+            this.consulClient = Consul.builder()
+                    .withUrl(String.format("http://%s:%d", consulHost, consulPort))
+                    .withReadTimeoutMillis(timeout)
+                    .withConnectTimeoutMillis(configManager.getConsulConnectTimeout())
+                    .withWriteTimeoutMillis(configManager.getConsulWriteTimeout())
+                    .build();
+        }
+
+        // 更新负载均衡策略
+        String loadBalanceStrategy = configManager.getLoadBalanceStrategy();
+        this.loadBalance = ExtensionLoader
+                .getExtensionLoader(LoadBalance.class)
+                .getExtension(loadBalanceStrategy);
+        log.info("更新负载均衡策略: {}", loadBalanceStrategy);
+
+        // 更新同步周期
+        int newSyncPeriod = configManager.getConsulSyncPeriod();
+        if (newSyncPeriod != this.syncPeriodSeconds) {
+            log.info("更新同步周期: {} -> {}", this.syncPeriodSeconds, newSyncPeriod);
+            this.syncPeriodSeconds = newSyncPeriod;
+
+            // 重启定时任务
+            if (scheduledExecutor != null) {
+                scheduledExecutor.shutdown();
+            }
+            initScheduler();
+            startSyncTask(this.syncPeriodSeconds);
+        }
+
+        log.info("Consul服务中心配置已刷新");
     }
 
-    // 启动定时同步任务
-    private void startSyncTask() {
+    /**
+     * 启动定时同步任务
+     */
+    private void startSyncTask(int periodSeconds) {
         scheduledExecutor.scheduleAtFixedRate(
                 this::syncAllServices,
                 0,
-                SYNC_PERIOD_SECONDS,
+                periodSeconds,
                 TimeUnit.SECONDS);
-        log.info("已启动Consul服务同步任务，同步周期: {}秒", SYNC_PERIOD_SECONDS);
+        log.info("已启动Consul服务同步任务，同步周期: {}秒", periodSeconds);
     }
 
-    // 同步所有已知服务
+    /**
+     * 同步所有已知服务
+     */
     private void syncAllServices() {
         try {
             // 获取Consul中所有服务名称
@@ -103,7 +182,9 @@ public class ConsulServiceCenter implements ServiceCenter {
         }
     }
 
-    // 同步指定服务的实例信息
+    /**
+     * 同步指定服务的实例信息
+     */
     public void syncServiceFromConsul(String serviceName) {
         try {
             // 查询健康的服务实例
@@ -177,7 +258,9 @@ public class ConsulServiceCenter implements ServiceCenter {
         }
     }
 
-    // 字符串解析为地址
+    /**
+     * 字符串解析为地址
+     */
     private InetSocketAddress parseAddress(String address) {
         String[] result = address.split(":");
         return new InetSocketAddress(result[0], Integer.parseInt(result[1]));
@@ -198,14 +281,18 @@ public class ConsulServiceCenter implements ServiceCenter {
         return true;
     }
 
-    // 从方法签名中提取服务名称
+    /**
+     * 从方法签名中提取服务名称
+     */
     private String extractServiceName(String methodSignature) {
         // 方法签名格式: com.example.Service#methodName(args)
         int hashIndex = methodSignature.indexOf('#');
         return hashIndex > 0 ? methodSignature.substring(0, hashIndex) : methodSignature;
     }
 
-    // 检查方法是否被标记为可重试
+    /**
+     * 检查方法是否被标记为可重试
+     */
     private boolean isMethodRetryable(String serviceName, String methodSignature) {
         // 1. 尝试从缓存获取可重试方法列表
         List<String> retryableMethods = retryableMethodsCache.get(serviceName);
@@ -225,7 +312,9 @@ public class ConsulServiceCenter implements ServiceCenter {
         return retryableMethods.contains(methodSignature);
     }
 
-    // 从Consul获取服务的可重试方法列表
+    /**
+     * 从Consul获取服务的可重试方法列表
+     */
     private List<String> fetchRetryableMethodsFromConsul(String serviceName) {
         try {
             List<String> retryableMethods = new ArrayList<>();
@@ -260,14 +349,18 @@ public class ConsulServiceCenter implements ServiceCenter {
     public void close() {
         // 关闭定时任务线程池
         try {
-            scheduledExecutor.shutdown();
-            if (!scheduledExecutor.awaitTermination(5, TimeUnit.SECONDS)) {
-                scheduledExecutor.shutdownNow();
+            if (scheduledExecutor != null) {
+                scheduledExecutor.shutdown();
+                if (!scheduledExecutor.awaitTermination(5, TimeUnit.SECONDS)) {
+                    scheduledExecutor.shutdownNow();
+                }
+                log.info("关闭Consul同步任务");
             }
-            log.info("关闭Consul同步任务");
         } catch (Exception e) {
             log.error("关闭Consul同步任务失败", e);
-            scheduledExecutor.shutdownNow();
+            if (scheduledExecutor != null) {
+                scheduledExecutor.shutdownNow();
+            }
         }
 
         // Consul客户端资源释放

@@ -1,0 +1,14 @@
+# 序列化器实现配置
+# 使用方式: 配置 rpc.serializer=json/hessian/protobuf 来选择序列化方式
+
+# JSON序列化器 - 基于fastjson，可读性好，适合开发调试
+json=common.serializer.mySerializer.JsonSerializer
+
+# Hessian序列化器 - 二进制格式，性能好且支持复杂对象
+hessian=common.serializer.mySerializer.HessianSerializer
+
+# Protobuf序列化器 - 高效二进制序列化，适合高性能场景
+protobuf=common.serializer.mySerializer.ProtobufSerializer
+
+# Kryo序列化器 - 高性能序列化库，速度快且紧凑
+kryo=common.serializer.mySerializer.KryoSerializer

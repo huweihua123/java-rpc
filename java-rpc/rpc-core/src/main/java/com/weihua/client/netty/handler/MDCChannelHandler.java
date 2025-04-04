@@ -1,7 +1,7 @@
 /*
  * @Author: weihua hu
  * @Date: 2025-04-01 12:23:14
- * @LastEditTime: 2025-04-03 19:22:27
+ * @LastEditTime: 2025-04-04 20:43:15
  * @LastEditors: weihua hu
  * @Description: 
  */
@@ -22,26 +22,30 @@ import com.weihua.trace.RequestTraceContextManager;
 
 @Log4j2
 public class MDCChannelHandler extends ChannelOutboundHandlerAdapter {
-    // 此常量可能仍被其他代码引用，暂时保留
     public static final AttributeKey<Map<String, String>> TRACE_CONTEXT_KEY = AttributeKey.valueOf("TraceContext");
 
     @Override
     public void write(ChannelHandlerContext ctx, Object msg, ChannelPromise promise) throws Exception {
-        // 针对RpcRequest类型的消息，从RequestTraceContextManager获取上下文
         if (msg instanceof RpcRequest) {
             RpcRequest request = (RpcRequest) msg;
             String requestId = request.getRequestId();
 
-            // 从RequestTraceContextManager获取追踪上下文
-            Map<String, String> traceContext = RequestTraceContextManager.getTraceContext(requestId);
-            if (traceContext != null) {
-                TraceContext.clone(traceContext);
-                log.debug("已从RequestTraceContextManager获取Trace上下文, requestId: {}", requestId);
+            // 心跳请求特殊处理
+            if (request.isHeartBeat()) {
+                log.debug("跳过为心跳请求设置追踪上下文, requestId: {}", requestId);
             } else {
-                log.warn("未找到请求对应的Trace上下文, requestId: {}", requestId);
+                // 处理正常业务请求
+                if (requestId != null) {
+                    Map<String, String> traceContext = RequestTraceContextManager.getTraceContext(requestId);
+                    if (traceContext != null && !traceContext.isEmpty()) {
+                        TraceContext.clone(traceContext);
+                        log.debug("已设置请求追踪上下文, requestId: {}", requestId);
+                    }
+                } else {
+                    log.warn("业务请求的requestId为null");
+                }
             }
         } else if (msg instanceof RpcResponse) {
-            // 对于响应消息，可以选择是否处理
             RpcResponse response = (RpcResponse) msg;
             log.debug("发送响应: requestId={}", response.getRequestId());
         }
