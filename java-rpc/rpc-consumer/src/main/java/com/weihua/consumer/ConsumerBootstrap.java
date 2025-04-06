@@ -1,15 +1,15 @@
 /*
  * @Author: weihua hu
  * @Date: 2025-04-04 22:50:44
- * @LastEditTime: 2025-04-04 22:50:46
+ * @LastEditTime: 2025-04-05 02:17:02
  * @LastEditors: weihua hu
  * @Description: 
  */
 package com.weihua.consumer;
 
 import com.weihua.client.config.RegistryConfigManager;
-import com.weihua.consumer.config.ConsumerConfigManager;
 import common.bootstrap.RpcBootstrap;
+import common.config.ConfigurationManager;
 import com.weihua.client.proxy.ClientProxy;
 import lombok.extern.log4j.Log4j2;
 import org.yaml.snakeyaml.Yaml;
@@ -128,21 +128,21 @@ public class ConsumerBootstrap {
      * 记录关键配置信息
      */
     private static void logConsumerConfig() {
-        ConsumerConfigManager config = ConsumerConfigManager.getInstance();
+        ConfigurationManager config = ConfigurationManager.getInstance();
 
         log.info("===== RPC Consumer Configuration =====");
-        log.info("连接超时: {}ms", config.getTimeout());
-        log.info("负载均衡策略: {}", config.getLoadBalanceStrategy());
-        log.info("失败策略: {}", config.getFailoverPolicy());
-        log.info("连接池启用: {}", config.isConnectionPoolEnable());
-        log.info("最大空闲连接: {}", config.getPoolMaxIdle());
-        log.info("最小空闲连接: {}", config.getPoolMinIdle());
-        log.info("连接空闲超时: {}ms", config.getConnectionIdleTimeout());
-        log.info("重试启用: {}", config.isRetryEnable());
-        log.info("最大重试次数: {}", config.getRetryMaxTimes());
-        log.info("重试间隔: {}ms", config.getRetryInterval());
-        log.info("熔断器失败阈值: {}", config.getCircuitBreakerFailures());
-        log.info("熔断器错误率: {}", config.getCircuitBreakerErrorRate());
+        log.info("连接超时: {}ms", config.getInt("rpc.consumer.timeout", 3000));
+        log.info("负载均衡策略: {}", config.getString("rpc.consumer.loadbalance", "random"));
+        log.info("失败策略: {}", config.getString("rpc.consumer.failover", "failfast"));
+        log.info("连接池启用: {}", config.getBoolean("rpc.consumer.connection.pool.enable", true));
+        log.info("最大空闲连接: {}", config.getInt("rpc.consumer.connection.pool.maxIdle", 16));
+        log.info("最小空闲连接: {}", config.getInt("rpc.consumer.connection.pool.minIdle", 4));
+        log.info("连接空闲超时: {}ms", config.getLong("rpc.consumer.connection.idleTimeout", 30000));
+        log.info("重试启用: {}", config.getBoolean("rpc.consumer.retry.enable", true));
+        log.info("最大重试次数: {}", config.getInt("rpc.consumer.retry.maxTimes", 3));
+        log.info("重试间隔: {}ms", config.getInt("rpc.consumer.retry.interval", 1000));
+        log.info("熔断器失败阈值: {}", config.getInt("rpc.consumer.circuitbreaker.failures", 5));
+        log.info("熔断器错误率: {}", config.getDouble("rpc.consumer.circuitbreaker.errorRate", 0.5));
         log.info("===================================");
     }
 
