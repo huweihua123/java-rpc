@@ -23,7 +23,7 @@
             </Policies>
             <DefaultRolloverStrategy max="20"/>
         </RollingFile>
-        
+
         <!-- 错误日志单独记录 -->
         <RollingFile name="ErrorFile" fileName="${LOG_DIR}/error.log"
                      filePattern="${LOG_DIR}/error-%d{yyyy-MM-dd}-%i.log">
@@ -39,23 +39,29 @@
             </Filters>
         </RollingFile>
     </Appenders>
-    
+
     <Loggers>
-        <Root level="info">
+        <Root level="debug">
             <AppenderRef ref="Console"/>
             <AppenderRef ref="RollingFile"/>
             <AppenderRef ref="ErrorFile"/>
         </Root>
-        
-        <!-- 设置框架相关的包日志级别 -->
-        <Logger name="com.weihua" level="info" additivity="false">
+
+        <!-- 消费者特有日志配置 -->
+        <Logger name="com.weihua.server" level="debug" additivity="false">
             <AppenderRef ref="Console"/>
             <AppenderRef ref="RollingFile"/>
             <AppenderRef ref="ErrorFile"/>
         </Logger>
-        
+
+        <Logger name="com.weihua.provider" level="info" additivity="false">
+            <AppenderRef ref="Console"/>
+            <AppenderRef ref="RollingFile"/>
+            <AppenderRef ref="ErrorFile"/>
+        </Logger>
+
         <!-- 第三方库日志级别 -->
-        <Logger name="io.netty" level="warn" additivity="false">
+        <Logger name="io.netty" level="debug" additivity="false">
             <AppenderRef ref="Console"/>
             <AppenderRef ref="RollingFile"/>
         </Logger>

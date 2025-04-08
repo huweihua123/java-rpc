@@ -24,17 +24,18 @@ public class MyEncoder extends MessageToByteEncoder {
      * 5、序列化message,得到序列化数组
      * 6、写入message length
      * 7、写入message
-     * */
+     */
     @Override
     protected void encode(ChannelHandlerContext ctx, Object msg, ByteBuf out) throws Exception {
         log.debug("Encoding message of type: {}", msg.getClass());
 
-        //1.写入trace消息长度
+        // 1.写入trace消息长度
         String traceMsg = TraceContext.getTraceId() + ";" + TraceContext.getSpanId();
         byte[] traceBytes = traceMsg.getBytes();
         out.writeInt(traceBytes.length);
-        //2.写入trace消息体
+        // 2.写入trace消息体
         out.writeBytes(traceBytes);
+        log.info("msg:{}", msg);
 
         if (msg instanceof RpcRequest) {
             out.writeShort(MessageType.REQUEST.getCode());
@@ -47,7 +48,6 @@ public class MyEncoder extends MessageToByteEncoder {
         out.writeShort(serializer.getType());
 
         byte[] bytes = serializer.serialize(msg);
-
 
         if (bytes == null && bytes.length == 0) {
             throw new IllegalArgumentException("Serialized message is empty");

@@ -13,39 +13,22 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.ReentrantLock;
-import java.util.stream.Collectors;
 
 /**
- * Invoker管理器，负责管理所有的Invoker实例
+ * Invoker管理器
+ * 采用Dubbo风格的固定连接模型，每个地址只维护一个固定连接
  */
 @Log4j2
 public class InvokerManager {
     // 单例
     private static final InvokerManager INSTANCE = new InvokerManager();
 
-    // 默认每个服务地址的最大连接数
-    private static final int DEFAULT_MAX_CONNECTIONS = 4;
-
-    // 默认每个服务地址的初始连接数
-    private static final int DEFAULT_INIT_CONNECTIONS = 4;
-
-    // 按地址存储Invoker - 使用InetSocketAddress代替String作为键
-    private final Map<InetSocketAddress, CopyOnWriteArrayList<Invoker>> invokerMap = new ConcurrentHashMap<>();
-
-    // 连接计数器
-    private final Map<InetSocketAddress, AtomicInteger> connectionCounter = new ConcurrentHashMap<>();
-
-    // 每个地址的最大连接数
-    private final Map<InetSocketAddress, Integer> maxConnectionsMap = new ConcurrentHashMap<>();
-
-    // 每个地址的初始连接数
-    private final Map<InetSocketAddress, Integer> initConnectionsMap = new ConcurrentHashMap<>();
+    // 按地址存储Invoker（每个地址一个固定Invoker）
+    private final Map<InetSocketAddress, Invoker> invokerMap = new ConcurrentHashMap<>();
 
     // 连接创建锁
     private final ReentrantLock lock = new ReentrantLock();
@@ -56,15 +39,18 @@ public class InvokerManager {
     // 默认超时时间（秒）
     private int defaultTimeout = 5;
 
-    // 连接健康检查和维护调度器
+    // 连接健康检查调度器
     private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1, r -> {
-        Thread t = new Thread(r, "invoker-maintenance-thread");
+        Thread t = new Thread(r, "invoker-health-check");
         t.setDaemon(true);
         return t;
     });
 
     // 是否已启动
     private volatile boolean started = false;
+
+    // 重连间隔（毫秒）
+    private int reconnectInterval = 5000;
 
     private InvokerManager() {
     }
@@ -88,6 +74,13 @@ public class InvokerManager {
     }
 
     /**
+     * 设置重连间隔
+     */
+    public void setReconnectInterval(int intervalMillis) {
+        this.reconnectInterval = intervalMillis;
+    }
+
+    /**
      * 将字符串地址转换为InetSocketAddress
      */
     public static InetSocketAddress parseAddress(String address) throws UnknownHostException {
@@ -99,113 +92,91 @@ public class InvokerManager {
         String host = parts[0];
         int port = Integer.parseInt(parts[1]);
 
-        // 解析主机名为IP地址，确保不同主机名但指向同IP的情况能被正确处理
+        // 解析主机名为IP地址
         InetAddress inetAddress = InetAddress.getByName(host);
         return new InetSocketAddress(inetAddress, port);
     }
 
     /**
-     * 设置最大连接数
-     */
-    public void setMaxConnections(String address, int maxConnections) {
-        try {
-            InetSocketAddress socketAddress = parseAddress(address);
-            maxConnectionsMap.put(socketAddress, maxConnections);
-        } catch (Exception e) {
-            log.error("设置最大连接数失败: {}", e.getMessage());
-        }
-    }
-
-    /**
-     * 设置初始连接数
-     */
-    public void setInitConnections(String address, int initConnections) {
-        try {
-            InetSocketAddress socketAddress = parseAddress(address);
-            initConnectionsMap.put(socketAddress,
-                    Math.min(initConnections, getMaxConnections(socketAddress)));
-        } catch (Exception e) {
-            log.error("设置初始连接数失败: {}", e.getMessage());
-        }
-    }
-
-    /**
-     * 获取最大连接数
-     */
-    public int getMaxConnections(InetSocketAddress address) {
-        return maxConnectionsMap.getOrDefault(address, DEFAULT_MAX_CONNECTIONS);
-    }
-
-    /**
-     * 获取初始连接数
-     */
-    public int getInitConnections(InetSocketAddress address) {
-        return initConnectionsMap.getOrDefault(address, DEFAULT_INIT_CONNECTIONS);
-    }
-
-    /**
-     * 启动管理器，初始化连接维护任务
+     * 启动管理器，初始化连接健康检查任务
      */
     public void start() {
         if (!started) {
             synchronized (this) {
                 if (!started) {
-                    // 启动连接维护任务
+                    // 启动连接健康检查任务
                     scheduler.scheduleAtFixedRate(
-                            this::maintenanceTask,
-                            5, 30, TimeUnit.SECONDS);
+                            this::healthCheckTask,
+                            5, 10, TimeUnit.SECONDS);
                     started = true;
-                    log.info("InvokerManager已启动，连接维护任务已开始");
+                    log.info("InvokerManager已启动，连接健康检查任务已开始");
                 }
             }
         }
     }
 
     /**
-     * 连接维护任务
+     * 连接健康检查任务
      */
-    private void maintenanceTask() {
+    private void healthCheckTask() {
         try {
-            // 检查并维护各地址的连接
-            for (Map.Entry<InetSocketAddress, CopyOnWriteArrayList<Invoker>> entry : invokerMap.entrySet()) {
+            for (Map.Entry<InetSocketAddress, Invoker> entry : invokerMap.entrySet()) {
                 InetSocketAddress address = entry.getKey();
-                CopyOnWriteArrayList<Invoker> invokers = entry.getValue();
+                Invoker invoker = entry.getValue();
 
-                // 移除不可用的Invoker
-                List<Invoker> unavailableInvokers = invokers.stream()
-                        .filter(invoker -> !invoker.isAvailable())
-                        .collect(Collectors.toList());
-
-                for (Invoker invoker : unavailableInvokers) {
-                    removeInvoker(address, invoker);
-                    log.info("移除不可用的Invoker: {}", invoker.getId());
-                }
-
-                // 确保每个地址至少有初始连接数
-                int current = connectionCounter.getOrDefault(address, new AtomicInteger(0)).get();
-                int target = getInitConnections(address);
-
-                if (current < target) {
-                    log.info("地址 {}:{} 当前连接数 {}, 低于目标初始连接数 {}, 尝试预建立连接",
-                            address.getHostString(), address.getPort(), current, target);
+                // 如果连接不可用，尝试重连
+                if (!invoker.isAvailable()) {
+                    log.info("检测到连接不可用，准备重新连接: {}:{}",
+                            address.getHostString(), address.getPort());
 
                     try {
-                        for (int i = current; i < target; i++) {
-                            getInvoker(address);
-                        }
+                        // 销毁旧连接
+                        invoker.destroy();
+
+                        // 创建新连接（异步）
+                        createNewConnection(address);
                     } catch (Exception e) {
-                        log.warn("为地址 {}:{} 预建立连接失败: {}",
+                        log.warn("重新连接失败: {}:{}, 错误: {}",
                                 address.getHostString(), address.getPort(), e.getMessage());
                     }
                 }
             }
 
-            // 打印当前连接状态统计
+            // 打印状态
             printState();
-
         } catch (Exception e) {
-            log.error("执行连接维护任务时发生错误", e);
+            log.error("执行连接健康检查任务时出错", e);
         }
+    }
+
+    /**
+     * 创建新连接
+     */
+    private void createNewConnection(InetSocketAddress address) {
+        if (bootstrap == null) {
+            log.error("Bootstrap未设置，无法创建连接");
+            return;
+        }
+
+        // 异步连接创建
+        bootstrap.connect(address).addListener(future -> {
+            if (future.isSuccess()) {
+                Channel channel = (Channel) future.getNow();
+                Invoker newInvoker = new ChannelInvoker(channel, defaultTimeout);
+
+                // 替换旧连接
+                invokerMap.put(address, newInvoker);
+                log.info("成功重新连接到服务: {}:{}",
+                        address.getHostString(), address.getPort());
+            } else {
+                log.warn("连接失败: {}:{}, 将在{}ms后重试",
+                        address.getHostString(), address.getPort(), reconnectInterval);
+
+                // 延迟后重试
+                scheduler.schedule(() -> createNewConnection(address),
+                        reconnectInterval, TimeUnit.MILLISECONDS);
+            }
+        });
     }
 
     /**
@@ -218,27 +189,27 @@ public class InvokerManager {
 
         for (String address : addresses) {
             try {
-                // 转换为InetSocketAddress
                 InetSocketAddress socketAddress = parseAddress(address);
 
-                // 仅处理新地址
-                if (!invokerMap.containsKey(socketAddress)) {
-                    // 为新地址预建立初始连接
-                    int initCount = getInitConnections(socketAddress);
-                    log.info("为新地址 {}:{} 预建立 {} 个连接",
-                            socketAddress.getHostString(), socketAddress.getPort(), initCount);
+                // 使用锁保护整个检查和创建连接的过程
+                lock.lock();
+                try {
+                    if (!invokerMap.containsKey(socketAddress)) {
+                        log.info("为新地址创建连接: {}:{}",
+                                socketAddress.getHostString(), socketAddress.getPort());
 
-                    for (int i = 0; i < initCount; i++) {
-                        try {
-                            getInvoker(socketAddress);
-                        } catch (Exception e) {
-                            log.warn("为新地址 {}:{} 预建立连接失败: {}",
-                                    socketAddress.getHostString(), socketAddress.getPort(), e.getMessage());
+                        // 创建连接
+                        Channel channel = bootstrap.connect(socketAddress).sync().channel();
+                        if (channel != null && channel.isActive()) {
+                            Invoker newInvoker = new ChannelInvoker(channel, defaultTimeout);
+                            invokerMap.put(socketAddress, newInvoker);
                         }
                     }
+                } finally {
+                    lock.unlock();
                 }
             } catch (Exception e) {
-                log.error("处理地址 {} 失败: {}", address, e.getMessage());
+                log.error("处理地址失败: {}, 错误: {}", address, e.getMessage());
             }
         }
     }
@@ -258,11 +229,11 @@ public class InvokerManager {
                 try {
                     currentSocketAddresses.add(parseAddress(address));
                 } catch (Exception e) {
-                    log.warn("转换地址 {} 失败: {}", address, e.getMessage());
+                    log.warn("转换地址失败: {}, 错误: {}", address, e.getMessage());
                 }
             }
 
-            // 获取所有需要移除的地址
+            // 获取需要移除的地址
             List<InetSocketAddress> addressesToRemove = new ArrayList<>();
             for (InetSocketAddress existingAddress : invokerMap.keySet()) {
                 if (!currentSocketAddresses.contains(existingAddress)) {
@@ -272,14 +243,11 @@ public class InvokerManager {
 
             // 移除不再可用的地址
             for (InetSocketAddress address : addressesToRemove) {
-                CopyOnWriteArrayList<Invoker> invokers = invokerMap.remove(address);
-                if (invokers != null) {
-                    for (Invoker invoker : invokers) {
-                        invoker.destroy();
-                    }
-                    connectionCounter.remove(address);
-                    log.info("移除下线地址: {}:{}, 关闭 {} 个连接",
-                            address.getHostString(), address.getPort(), invokers.size());
+                Invoker invoker = invokerMap.remove(address);
+                if (invoker != null) {
+                    invoker.destroy();
+                    log.info("移除下线地址连接: {}:{}",
+                            address.getHostString(), address.getPort());
                 }
             }
         } catch (Exception e) {
@@ -296,104 +264,59 @@ public class InvokerManager {
 
     /**
      * 获取或创建Invoker (InetSocketAddress版)
-     * 
-     * @param socketAddress 服务地址
-     * @return Invoker实例
      */
     public Invoker getInvoker(InetSocketAddress socketAddress) throws Exception {
-        // 先尝试获取已有的活跃Invoker
-        Invoker invoker = getLeastActiveInvoker(socketAddress);
-        if (invoker != null) {
+        // 先检查是否已有可用连接
+        Invoker invoker = invokerMap.get(socketAddress);
+        if (invoker != null && invoker.isAvailable()) {
             return invoker;
         }
 
-        // 获取当前连接数
-        int currentCount = connectionCounter.getOrDefault(socketAddress, new AtomicInteger(0)).get();
-        int maxConnections = getMaxConnections(socketAddress);
+        // 需要创建新连接
+        lock.lock();
+        try {
+            // 双重检查
+            invoker = invokerMap.get(socketAddress);
+            if (invoker != null && invoker.isAvailable()) {
+                return invoker;
+            }
 
-        // 如果未达到最大连接数，创建新连接
-        if (currentCount < maxConnections) {
-            lock.lock();
-            try {
-                // 双重检查
-                currentCount = connectionCounter.getOrDefault(socketAddress, new AtomicInteger(0)).get();
-                if (currentCount < maxConnections) {
-                    // 创建新连接
-                    if (bootstrap == null) {
-                        throw new IllegalStateException("Bootstrap未设置，无法创建连接");
-                    }
+            // 创建新连接
+            if (bootstrap == null) {
+                throw new IllegalStateException("Bootstrap未设置，无法创建连接");
+            }
 
-                    Channel channel = bootstrap.connect(socketAddress).sync().channel();
-                    if (channel != null && channel.isActive()) {
-                        // 创建Invoker并添加到管理器
-                        Invoker newInvoker = new ChannelInvoker(channel, defaultTimeout);
-                        addInvoker(socketAddress, newInvoker);
-                        return newInvoker;
-                    }
-                    throw new Exception("创建连接失败");
+            log.info("创建新连接: {}:{}", socketAddress.getHostString(), socketAddress.getPort());
+            Channel channel = bootstrap.connect(socketAddress).sync().channel();
+
+            if (channel != null && channel.isActive()) {
+                Invoker newInvoker = new ChannelInvoker(channel, defaultTimeout);
+
+                // 替换旧连接（如果有）
+                Invoker oldInvoker = invokerMap.put(socketAddress, newInvoker);
+                if (oldInvoker != null) {
+                    oldInvoker.destroy();
                 }
-            } finally {
-                lock.unlock();
+
+                return newInvoker;
             }
-        }
 
-        // 如果已达到最大连接数但没有可用的Invoker，说明所有连接都不可用
-        throw new Exception("无可用连接，且已达到最大连接数限制: " + maxConnections);
+            throw new Exception("创建连接失败");
+        } finally {
+            lock.unlock();
+        }
     }
 
     /**
-     * 添加Invoker
-     */
-    private void addInvoker(InetSocketAddress address, Invoker invoker) {
-        invokerMap.computeIfAbsent(address, k -> new CopyOnWriteArrayList<>()).add(invoker);
-        connectionCounter.computeIfAbsent(address, k -> new AtomicInteger(0)).incrementAndGet();
-        log.info("添加新Invoker到连接池，地址: {}:{}, 当前连接数: {}",
-                address.getHostString(), address.getPort(),
-                connectionCounter.get(address).get());
-    }
-
-    /**
-     * 获取最少活跃请求的Invoker
-     */
-    private Invoker getLeastActiveInvoker(InetSocketAddress address) {
-        CopyOnWriteArrayList<Invoker> invokers = invokerMap.get(address);
-        if (invokers == null || invokers.isEmpty()) {
-            return null;
-        }
-
-        // 筛选可用的Invoker
-        List<Invoker> availableInvokers = invokers.stream()
-                .filter(Invoker::isAvailable)
-                .collect(Collectors.toList());
-
-        if (availableInvokers.isEmpty()) {
-            return null;
-        }
-
-        // 查找活跃请求数最少的Invoker
-        Invoker leastActive = availableInvokers.get(0);
-        for (Invoker invoker : availableInvokers) {
-            if (invoker.getActiveCount() < leastActive.getActiveCount()) {
-                leastActive = invoker;
-            }
-        }
-
-        log.debug("选择最少活跃请求Invoker: {}, 活跃请求数: {}",
-                leastActive.getId(), leastActive.getActiveCount());
-        return leastActive;
-    }
-
-    /**
-     * 获取指定地址的所有可用Invoker
+     * 获取指定地址的所有可用Invoker (为兼容API，只返回单个固定连接)
      */
     public List<Invoker> getAvailableInvokers(InetSocketAddress address) {
-        CopyOnWriteArrayList<Invoker> invokers = invokerMap.get(address);
-        if (invokers == null) {
-            return new ArrayList<>();
+        List<Invoker> result = new ArrayList<>();
+        Invoker invoker = invokerMap.get(address);
+        if (invoker != null && invoker.isAvailable()) {
+            result.add(invoker);
         }
-        return invokers.stream()
-                .filter(Invoker::isAvailable)
-                .collect(Collectors.toList());
+        return result;
     }
 
     /**
@@ -413,42 +336,12 @@ public class InvokerManager {
      */
     public List<Invoker> getAllAvailableInvokers() {
         List<Invoker> result = new ArrayList<>();
-        for (CopyOnWriteArrayList<Invoker> invokers : invokerMap.values()) {
-            invokers.stream()
-                    .filter(Invoker::isAvailable)
-                    .forEach(result::add);
+        for (Invoker invoker : invokerMap.values()) {
+            if (invoker.isAvailable()) {
+                result.add(invoker);
+            }
         }
         return result;
-    }
-
-    /**
-     * 移除Invoker (InetSocketAddress版)
-     */
-    public void removeInvoker(InetSocketAddress address, Invoker invoker) {
-        if (invoker == null) {
-            return;
-        }
-
-        CopyOnWriteArrayList<Invoker> invokers = invokerMap.get(address);
-        if (invokers != null) {
-            invokers.remove(invoker);
-            connectionCounter.get(address).decrementAndGet();
-            invoker.destroy();
-            log.info("移除Invoker, 地址: {}:{}, 当前连接数: {}",
-                    address.getHostString(), address.getPort(),
-                    connectionCounter.get(address).get());
-        }
-    }
-
-    /**
-     * 移除Invoker (String地址版)
-     */
-    public void removeInvoker(String address, Invoker invoker) {
-        try {
-            removeInvoker(parseAddress(address), invoker);
-        } catch (Exception e) {
-            log.error("移除Invoker失败: {}", e.getMessage());
-        }
     }
 
     /**
@@ -469,15 +362,13 @@ public class InvokerManager {
         }
 
         // 销毁所有Invoker
-        for (Map.Entry<InetSocketAddress, CopyOnWriteArrayList<Invoker>> entry : invokerMap.entrySet()) {
-            for (Invoker invoker : entry.getValue()) {
+        for (Map.Entry<InetSocketAddress, Invoker> entry : invokerMap.entrySet()) {
+            Invoker invoker = entry.getValue();
+            if (invoker != null) {
                 invoker.destroy();
             }
-            entry.getValue().clear();
-            connectionCounter.get(entry.getKey()).set(0);
         }
         invokerMap.clear();
-        connectionCounter.clear();
         started = false;
         log.info("InvokerManager已关闭，所有资源已清理");
     }
@@ -486,33 +377,17 @@ public class InvokerManager {
      * 打印状态信息
      */
     public void printState() {
-        for (Map.Entry<InetSocketAddress, AtomicInteger> entry : connectionCounter.entrySet()) {
+        for (Map.Entry<InetSocketAddress, Invoker> entry : invokerMap.entrySet()) {
             InetSocketAddress address = entry.getKey();
-            int count = entry.getValue().get();
-            int maxConn = getMaxConnections(address);
+            Invoker invoker = entry.getValue();
 
-            // 获取地址的活跃请求总数和可用连接数
-            List<Invoker> availableInvokers = getAvailableInvokers(address);
-            int activeRequests = 0;
-            double avgResponseTime = 0;
-            double avgSuccessRate = 0;
-
-            for (Invoker invoker : availableInvokers) {
-                activeRequests += invoker.getActiveCount();
-                avgResponseTime += invoker.getAvgResponseTime();
-                avgSuccessRate += invoker.getSuccessRate();
+            if (invoker != null) {
+                log.info("连接状态 - 地址: {}:{}, 可用: {}, 活跃请求: {}, 平均响应时间: {}ms, 成功率: {}%",
+                        address.getHostString(), address.getPort(),
+                        invoker.isAvailable(), invoker.getActiveCount(),
+                        String.format("%.2f", invoker.getAvgResponseTime()),
+                        String.format("%.2f", invoker.getSuccessRate() * 100));
             }
-
-            if (!availableInvokers.isEmpty()) {
-                avgResponseTime /= availableInvokers.size();
-                avgSuccessRate /= availableInvokers.size();
-            }
-
-            log.info("连接池状态 - 地址: {}:{}, 连接数: {}/{}, 可用: {}, 活跃请求: {}, 平均响应时间: {}ms, 成功率: {}%",
-                    address.getHostString(), address.getPort(),
-                    count, maxConn, availableInvokers.size(), activeRequests,
-                    String.format("%.2f", avgResponseTime),
-                    String.format("%.2f", avgSuccessRate * 100));
         }
     }
 }

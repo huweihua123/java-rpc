@@ -7,18 +7,22 @@ import com.weihua.client.cache.ServiceCache;
 import com.weihua.client.config.RegistryConfigManager;
 import com.weihua.client.serverCenter.ServiceCenter;
 import com.weihua.client.serverCenter.balance.LoadBalance;
+import com.weihua.client.serverCenter.handler.ServiceAddressChangeHandler;
 import common.message.RpcRequest;
 import common.spi.ExtensionLoader;
 import lombok.extern.log4j.Log4j2;
 
 import java.net.InetSocketAddress;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 
 @Log4j2
 public class ConsulServiceCenter implements ServiceCenter {
@@ -39,6 +43,10 @@ public class ConsulServiceCenter implements ServiceCenter {
     private int syncPeriodSeconds;
     // 配置管理器
     private final RegistryConfigManager configManager;
+    // 地址变更监听器
+    private final Map<String, Set<Consumer<List<String>>>> addressChangeListeners = new ConcurrentHashMap<>();
+    // 地址变更处理器
+    private final ServiceAddressChangeHandler addressChangeHandler;
 
     /**
      * 提供给SPI机制使用的无参构造函数
@@ -79,6 +87,9 @@ public class ConsulServiceCenter implements ServiceCenter {
 
         // 启动定时同步任务
         startSyncTask(this.syncPeriodSeconds);
+
+        // 初始化地址变更处理器
+        this.addressChangeHandler = ServiceAddressChangeHandler.getInstance();
     }
 
     /**
@@ -166,20 +177,44 @@ public class ConsulServiceCenter implements ServiceCenter {
         log.info("已启动Consul服务同步任务，同步周期: {}秒", periodSeconds);
     }
 
-    /**
-     * 同步所有已知服务
-     */
     private void syncAllServices() {
         try {
             // 获取Consul中所有服务名称
             Map<String, List<String>> catalogServices = consulClient.catalogClient().getServices().getResponse();
+            Set<String> ignoredServices = getIgnoredServices();
+
             for (String serviceName : catalogServices.keySet()) {
-                syncServiceFromConsul(serviceName);
+                // 过滤掉系统服务
+                if (!ignoredServices.contains(serviceName)) {
+                    syncServiceFromConsul(serviceName);
+                } else {
+                    log.debug("忽略系统服务: {}", serviceName);
+                }
             }
             log.debug("已完成所有服务的同步");
         } catch (Exception e) {
             log.error("同步服务列表时发生错误", e);
         }
+    }
+
+    /**
+     * 获取需要被忽略的系统服务名称列表
+     */
+    private Set<String> getIgnoredServices() {
+        // 从配置中读取需要忽略的服务名称，或使用默认值
+        Set<String> ignoredServices = new HashSet<>();
+        ignoredServices.add("consul");
+
+        // 可以从配置管理器获取其他需要忽略的服务
+        // String additionalIgnoredServices = configManager.getIgnoredServices();
+        // if (additionalIgnoredServices != null &&
+        // !additionalIgnoredServices.isEmpty()) {
+        // for (String service : additionalIgnoredServices.split(",")) {
+        // ignoredServices.add(service.trim());
+        // }
+        // }
+
+        return ignoredServices;
     }
 
     /**
@@ -216,9 +251,71 @@ public class ConsulServiceCenter implements ServiceCenter {
                 }
             }
 
+            // 通知地址变更
+            notifyAddressChange(serviceName, currentAddresses);
+
             log.debug("已同步服务 {} 的实例信息，共 {} 个实例", serviceName, currentAddresses.size());
         } catch (Exception e) {
             log.error("同步服务 {} 信息时发生错误", serviceName, e);
+        }
+    }
+
+    /**
+     * 通知地址变更事件
+     */
+    private void notifyAddressChange(String serviceName, List<String> currentAddresses) {
+        for (int i = 0; i < currentAddresses.size(); i++) {
+            log.info(currentAddresses.get(i));
+        }
+        // 通知地址变更处理器
+        addressChangeHandler.handleAddressChange(serviceName, currentAddresses);
+
+        // 通知注册的监听器
+        Set<Consumer<List<String>>> listeners = addressChangeListeners.get(serviceName);
+        if (listeners != null) {
+            for (Consumer<List<String>> listener : listeners) {
+                try {
+                    listener.accept(currentAddresses);
+                } catch (Exception e) {
+                    log.error("通知地址变更监听器失败", e);
+                }
+            }
+        }
+    }
+
+    @Override
+    public void subscribeAddressChange(String serviceName, Consumer<List<String>> listener) {
+        if (serviceName == null || listener == null) {
+            return;
+        }
+
+        // 将监听器添加到集合
+        Set<Consumer<List<String>>> listeners = addressChangeListeners.computeIfAbsent(
+                serviceName, k -> ConcurrentHashMap.newKeySet());
+        listeners.add(listener);
+
+        // 立即同步一次服务信息
+        syncServiceFromConsul(serviceName);
+
+        log.info("已为服务 {} 添加地址变更监听", serviceName);
+    }
+
+    @Override
+    public void unsubscribeAddressChange(String serviceName, Consumer<List<String>> listener) {
+        if (serviceName == null || listener == null) {
+            return;
+        }
+
+        // 从监听器集合中移除
+        Set<Consumer<List<String>>> listeners = addressChangeListeners.get(serviceName);
+        if (listeners != null) {
+            listeners.remove(listener);
+
+            // 如果没有监听器了，移除整个集合
+            if (listeners.isEmpty()) {
+                addressChangeListeners.remove(serviceName);
+                log.info("服务 {} 的所有地址变更监听器已移除", serviceName);
+            }
         }
     }
 

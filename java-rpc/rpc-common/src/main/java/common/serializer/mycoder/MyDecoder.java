@@ -15,8 +15,6 @@ import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.ByteToMessageDecoder;
 import lombok.extern.log4j.Log4j2;
-
-import java.util.Arrays;
 import java.util.List;
 
 @Log4j2
@@ -99,6 +97,7 @@ public class MyDecoder extends ByteToMessageDecoder {
         if (in.readableBytes() < traceLength) {
             // 数据不完整，回退读取位置，等待数据到齐
             in.resetReaderIndex();
+
             return;
         }
 
@@ -153,8 +152,9 @@ public class MyDecoder extends ByteToMessageDecoder {
 
         byte[] bytes = new byte[length];
         in.readBytes(bytes);
-        log.debug("Received bytes: {}", Arrays.toString(bytes));
+//        log.debug("Received bytes: {}", Arrays.toString(bytes));
         Object deSerialize = serializer.deSerialize(bytes, messageType);
+        log.info("msg:{}",deSerialize);
         out.add(deSerialize);
     }
 

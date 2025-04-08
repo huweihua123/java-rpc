@@ -102,7 +102,6 @@ public class ServiceCache {
                 log.warn("服务缓存已达到最大大小 {}, 无法添加更多实例", maxSize);
                 return false;
             }
-
             addresslist.add(address);
             log.debug("将服务 {} 地址 {} 添加到本地缓存", serviceName, address);
             return true; // 成功添加新地址

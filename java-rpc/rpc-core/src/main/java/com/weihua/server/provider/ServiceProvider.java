@@ -1,3 +1,10 @@
+/*
+ * @Author: weihua hu
+ * @Date: 2025-03-22 14:56:52
+ * @LastEditTime: 2025-04-07 22:54:33
+ * @LastEditors: weihua hu
+ * @Description: 
+ */
 package com.weihua.server.provider;
 
 import com.weihua.server.rateLimit.provider.RateLimitProvider;
@@ -89,7 +96,7 @@ public class ServiceProvider {
     public void shutdown() {
         if (serviceRegister != null) {
             try {
-//                serviceRegister.shutdown();
+                serviceRegister.shutdown();
                 log.info("服务注册中心已关闭");
             } catch (Exception e) {
                 log.error("关闭服务注册中心时发生错误", e);

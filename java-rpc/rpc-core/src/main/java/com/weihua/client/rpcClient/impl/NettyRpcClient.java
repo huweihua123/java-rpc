@@ -8,7 +8,7 @@ import com.weihua.client.serverCenter.ServiceCenter;
 import com.weihua.client.serverCenter.balance.LoadBalance;
 import com.weihua.client.serverCenter.handler.ServiceAddressChangeHandler;
 import com.weihua.client.util.RpcFutureManager;
-import com.weihua.trace.TraceCarrier; // 替换为新的TraceCarrier
+import com.weihua.trace.TraceCarrier;
 import common.config.ConfigurationManager;
 import common.message.RpcRequest;
 import common.message.RpcResponse;
@@ -30,11 +30,10 @@ import java.util.concurrent.TimeoutException;
 
 @Log4j2
 public class NettyRpcClient implements RpcClient {
-    // 配置相关
+    // 配置相关（移除连接池相关配置，保留必要配置）
     private final int connectTimeoutMillis;
     private final int requestTimeoutSeconds;
-    private final int maxConnectionsPerAddress;
-    private final int initConnectionsPerAddress;
+    private final int reconnectIntervalMillis; // 新增重连间隔配置
 
     // 网络组件
     private final Bootstrap bootstrap;
@@ -54,7 +53,6 @@ public class NettyRpcClient implements RpcClient {
      * 使用SPI加载默认ServiceCenter实现的构造函数
      */
     public NettyRpcClient() {
-        // 使用SPI机制加载服务中心实现
         this(ExtensionLoader.getExtensionLoader(ServiceCenter.class).getDefaultExtension());
     }
 
@@ -66,8 +64,7 @@ public class NettyRpcClient implements RpcClient {
         ConfigurationManager configManager = ConfigurationManager.getInstance();
         this.connectTimeoutMillis = configManager.getInt("rpc.client.connect.timeout", 3000);
         this.requestTimeoutSeconds = configManager.getInt("rpc.client.request.timeout", 5);
-        this.maxConnectionsPerAddress = configManager.getInt("rpc.client.connections.max", 4);
-        this.initConnectionsPerAddress = configManager.getInt("rpc.client.connections.init", 1);
+        this.reconnectIntervalMillis = configManager.getInt("rpc.client.reconnect.interval", 5000);
 
         // 加载负载均衡策略
         String loadBalanceType = configManager.getString("rpc.client.loadbalance", "consistentHash");
@@ -91,20 +88,19 @@ public class NettyRpcClient implements RpcClient {
         this.invokerManager = InvokerManager.getInstance();
         this.invokerManager.setBootstrap(bootstrap);
         this.invokerManager.setDefaultTimeout(requestTimeoutSeconds);
+        this.invokerManager.setReconnectInterval(reconnectIntervalMillis);
 
         // 启动连接管理器
         this.invokerManager.start();
 
         this.addressChangeHandler = ServiceAddressChangeHandler.getInstance();
 
-        log.info("NettyRpcClient初始化完成，连接超时: {}ms, 请求超时: {}s, 最大连接数: {}, 初始连接数: {}",
-                connectTimeoutMillis, requestTimeoutSeconds, maxConnectionsPerAddress, initConnectionsPerAddress);
+        log.info("NettyRpcClient初始化完成，连接超时: {}ms, 请求超时: {}s, 重连间隔: {}ms",
+                connectTimeoutMillis, requestTimeoutSeconds, reconnectIntervalMillis);
     }
 
     /**
      * 使用指定服务中心类型的构造函数
-     *
-     * @param serviceCenterType 服务中心类型名称
      */
     public NettyRpcClient(String serviceCenterType) {
         this(ExtensionLoader.getExtensionLoader(ServiceCenter.class).getExtension(serviceCenterType));
@@ -137,7 +133,7 @@ public class NettyRpcClient implements RpcClient {
 
                         // 提取响应中的追踪上下文
                         if (response != null) {
-                            TraceCarrier.extract(request);
+                            TraceCarrier.extract(response);
                         }
 
                         return response;
@@ -155,20 +151,7 @@ public class NettyRpcClient implements RpcClient {
                 return RpcResponse.fail("未找到服务: " + request.getInterfaceName());
             }
 
-            // 设置地址最大连接数和初始连接数
-            if (maxConnectionsPerAddress > 0) {
-                invokerManager.setMaxConnections(
-                        serviceAddress.getHostString() + ":" + serviceAddress.getPort(),
-                        maxConnectionsPerAddress);
-            }
-
-            if (initConnectionsPerAddress > 0) {
-                invokerManager.setInitConnections(
-                        serviceAddress.getHostString() + ":" + serviceAddress.getPort(),
-                        initConnectionsPerAddress);
-            }
-
-            // 获取Invoker发送请求
+            // 获取Invoker发送请求 (直接获取，不再设置连接池参数)
             log.debug("发送请求到服务: {}, 地址: {}:{}",
                     request.getInterfaceName(), serviceAddress.getHostString(), serviceAddress.getPort());
 
@@ -187,7 +170,7 @@ public class NettyRpcClient implements RpcClient {
 
             // 提取响应中的追踪上下文
             if (response != null) {
-                TraceCarrier.extract(response); // 这里修正从请求提取为从响应提取
+                TraceCarrier.extract(response);
             }
 
             return response;
@@ -234,7 +217,7 @@ public class NettyRpcClient implements RpcClient {
     }
 
     /**
-     * 打印连接池状态
+     * 打印连接状态
      */
     public void printPoolState() {
         invokerManager.printState();

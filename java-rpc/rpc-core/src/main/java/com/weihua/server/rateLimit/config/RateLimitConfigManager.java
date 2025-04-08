@@ -62,8 +62,8 @@ public class RateLimitConfigManager {
         // 使用ConcurrentHashMap的computeIfAbsent是线程安全的
         return interfaceRateLimits.computeIfAbsent(interfaceName, key -> {
             // 尝试加载接口特定配置
-            String rateKey = INTERFACE_PREFIX + key + ".rate";
-            String capacityKey = INTERFACE_PREFIX + key + ".capacity";
+            String rateKey = INTERFACE_PREFIX;
+            String capacityKey = INTERFACE_PREFIX;
 
             int rateMs = configManager.getInt(rateKey, defaultRateMs);
             int capacity = configManager.getInt(capacityKey, defaultCapacity);

@@ -3,7 +3,7 @@
  * 
  * @Date: 2025-04-03 23:01:50
  * 
- * @LastEditTime: 2025-04-05 00:07:42
+ * @LastEditTime: 2025-04-06 20:28:59
  * 
  * @LastEditors: weihua hu
  * 
@@ -60,7 +60,7 @@ public class ConfigurationManager implements Configuration {
     private static final Map<String, String> CONFIG_FILES = new HashMap<>();
 
     static {
-        CONFIG_FILES.put("default", "rpc-default.properties");
+//        CONFIG_FILES.put("default", "rpc-default.properties");
         CONFIG_FILES.put("core", "rpc-core.properties");
         CONFIG_FILES.put("consumer", "rpc-consumer.properties");
         CONFIG_FILES.put("provider", "rpc-provider.properties");
@@ -322,6 +322,25 @@ public class ConfigurationManager implements Configuration {
                 return Long.parseLong(value);
             } catch (NumberFormatException e) {
                 log.warn("Invalid long value for key: {}, value: {}", key, value);
+            }
+        }
+        return defaultValue;
+    }
+
+    /**
+     * 获取float类型的配置值
+     * 
+     * @param key          配置键
+     * @param defaultValue 默认值
+     * @return 配置值或默认值
+     */
+    public float getFloat(String key, float defaultValue) {
+        String value = getString(key);
+        if (value != null) {
+            try {
+                return Float.parseFloat(value);
+            } catch (NumberFormatException e) {
+                log.warn("Invalid float value for key: {}, value: {}", key, value);
             }
         }
         return defaultValue;

@@ -1,14 +1,13 @@
 /*
  * @Author: weihua hu
  * @Date: 2025-03-24 16:34:15
- * @LastEditTime: 2025-04-05 19:15:38
+ * @LastEditTime: 2025-04-05 02:14:18
  * @LastEditors: weihua hu
  * @Description: RPC消费者测试程序
  */
 package com.weihua.consumer;
 
 import com.weihua.client.proxy.ClientProxy;
-import com.weihua.consumer.config.ConsumerConfigManager;
 import com.weihua.pojo.User;
 import com.weihua.service.UserService;
 import common.bootstrap.RpcBootstrap;
@@ -28,10 +27,6 @@ public class ConsumerTest {
 
         // 获取配置
         ConfigurationManager configManager = ConfigurationManager.getInstance();
-        ConsumerConfigManager consumerConfigManager = ConsumerConfigManager.getInstance();
-
-        // 打印配置
-        consumerConfigManager.printConfig();
 
         // 从配置读取测试参数
         int threadPoolSize = configManager.getInt("rpc.consumer.threadpool.size", 20);
@@ -84,9 +79,9 @@ public class ConsumerTest {
 
         // 等待请求完成
         executorService.shutdown();
-        executorService.awaitTermination(60, TimeUnit.SECONDS);
+        executorService.awaitTermination(6000, TimeUnit.SECONDS);
 
         log.info("测试完成，正在关闭...");
-        clientProxy.close();
+        // clientProxy.close();
     }
 }

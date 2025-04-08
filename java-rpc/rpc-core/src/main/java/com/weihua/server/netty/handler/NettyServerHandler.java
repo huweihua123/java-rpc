@@ -1,112 +1,132 @@
 /*
  * @Author: weihua hu
- * @Date: 2025-03-20 20:02:05
- * @LastEditTime: 2025-04-03 15:37:13
+ * @Date: 2025-03-22 14:56:21
+ * @LastEditTime: 2025-04-08 16:03:44
  * @LastEditors: weihua hu
- * @Description:
+ * @Description: 
  */
 package com.weihua.server.netty.handler;
 
 import com.weihua.server.provider.ServiceProvider;
-import com.weihua.server.rateLimit.RateLimit;
-import com.weihua.trace.interceptor.ServerTraceInterceptor;
 import common.message.RequestType;
 import common.message.RpcRequest;
 import common.message.RpcResponse;
+import io.netty.channel.ChannelFuture;
+import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
-import lombok.AllArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 @Log4j2
-@AllArgsConstructor
 public class NettyServerHandler extends SimpleChannelInboundHandler<RpcRequest> {
-    private ServiceProvider serviceProvider;
+
+    private final ServiceProvider serviceProvider;
+    private static final ExecutorService SERVICE_EXECUTOR = Executors
+            .newFixedThreadPool(Runtime.getRuntime().availableProcessors() * 2);
+
+    public NettyServerHandler(ServiceProvider serviceProvider) {
+        this.serviceProvider = serviceProvider;
+    }
+
+    @Override
+    public void channelActive(ChannelHandlerContext ctx) throws Exception {
+        log.info("服务端业务处理器 - 连接激活: {}", ctx.channel());
+        super.channelActive(ctx);
+    }
+
+    @Override
+    public void channelInactive(ChannelHandlerContext ctx) throws Exception {
+        log.info("服务端业务处理器 - 连接断开: {}", ctx.channel());
+        super.channelInactive(ctx);
+    }
 
     @Override
     protected void channelRead0(ChannelHandlerContext ctx, RpcRequest request) throws Exception {
-
         if (request == null) {
             log.error("接收到非法请求，RpcRequest 为空");
             return;
         }
 
-        if (request.getType() == RequestType.HEARTBEAT) {
-            log.info("接收到来自客户端的心跳包");
+        // 处理心跳请求
+        if (request.isHeartBeat() || request.getType() == RequestType.HEARTBEAT) {
+            log.debug("接收到来自客户端的心跳包: {}", request.getRequestId());
+            RpcResponse heartbeatResponse = RpcResponse.success("pong");
+            heartbeatResponse.setRequestId(request.getRequestId());
+            heartbeatResponse.setHeartBeat(true);
+            ctx.writeAndFlush(heartbeatResponse);
             return;
         }
 
-        // 正常业务处理
-        if (request.getType() == RequestType.NORMAL) {
-            ServerTraceInterceptor.beforeHandle();
-
+        // 处理业务请求
+        SERVICE_EXECUTOR.submit(() -> {
+            RpcResponse response = null;
             boolean success = false;
             String errorMessage = null;
-            RpcResponse response = null;
+            String serviceName = request.getInterfaceName();
+            String methodName = request.getMethodName();
+
+            // 提取和存储追踪上下文到REQUEST_CONTEXT_MAP
+            com.weihua.server.handler.TraceServerHandler.handleRequest(request);
 
             try {
-                response = getResponse(request);
+                // 记录服务调用
+                log.info("服务器收到请求: {}#{}", serviceName, methodName);
+                response = handleRequest(request);
 
-                if (response != null) {
-                    response.setRequestId(request.getRequestId());
-                }
-
-                // 判断调用是否成功
-                success = response != null && response.getCode() == 200;
-                if (!success && response != null) {
-                    errorMessage = response.getMessage();
+                if (response != null && !response.hasError()) {
+                    success = true;
+                } else if (response != null) {
+                    errorMessage = "错误码: " + response.getCode() + ", 消息: " + response.getMessage();
                 }
             } catch (Exception e) {
-                success = false;
-                errorMessage = e.getClass().getName() + ": " + e.getMessage();
-                log.error("处理请求时发生异常", e);
-                // 创建错误响应对象，而不是抛出异常
-                response = RpcResponse.fail("服务端处理异常: " + errorMessage, request.getRequestId());
+                log.error("处理请求时发生错误", e);
+                errorMessage = e.getMessage();
+                response = RpcResponse.fail(e.getMessage());
             } finally {
-                // 确保始终发送响应
                 if (response != null) {
-                    ctx.writeAndFlush(response);
-                } else {
-                    ctx.writeAndFlush(RpcResponse.fail("服务端未知错误", request.getRequestId()));
+                    // 设置请求ID，确保可以找到对应的追踪上下文
+                    response.setRequestId(request.getRequestId());
+
+                    // 处理响应追踪信息
+                    com.weihua.server.handler.TraceServerHandler.handleResponse(response);
+
+                    ChannelFuture future = ctx.writeAndFlush(response);
+                    future.addListener(ChannelFutureListener.CLOSE_ON_FAILURE);
+                    log.debug("服务端响应已发送: {}", response);
                 }
-                // 更新链路追踪，添加成功状态和错误信息
-                ServerTraceInterceptor.afterHandle(request.getMethodName(), success, errorMessage);
             }
+        });
+    }
+
+    private RpcResponse handleRequest(RpcRequest request) {
+        // 原有业务处理逻辑保持不变
+        Object service = serviceProvider.getService(request.getInterfaceName());
+        if (service == null) {
+            log.error("找不到服务实现: {}", request.getInterfaceName());
+            return RpcResponse.fail("服务未实现: " + request.getInterfaceName());
+        }
+
+        try {
+            Method method = service.getClass().getMethod(request.getMethodName(), request.getParamTypes());
+            Object result = method.invoke(service, request.getParameters());
+            return RpcResponse.success(result);
+        } catch (NoSuchMethodException e) {
+            log.error("找不到方法: {}#{}", request.getInterfaceName(), request.getMethodName());
+            return RpcResponse.fail("找不到方法: " + request.getMethodName());
+        } catch (IllegalAccessException | InvocationTargetException e) {
+            log.error("调用方法时发生错误", e);
+            return RpcResponse.fail("调用方法失败: " + e.getMessage());
         }
     }
 
     @Override
-    public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
-        log.error("处理请求时发生异常: ", cause);
+    public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
+        log.error("服务器处理器发生异常", cause);
         ctx.close();
-    }
-
-    private RpcResponse getResponse(RpcRequest rpcRequest) {
-
-        // 得到服务名
-        String interfaceName = rpcRequest.getInterfaceName();
-        RateLimit rateLimit = serviceProvider.getRateLimitProvider().getRateLimit(interfaceName);
-        if (!rateLimit.getToken()) {
-            RpcResponse rpcResponse = RpcResponse.fail("服务限流，接口 " + interfaceName + " 当前无法处理请求。请稍后再试。", rpcRequest.getRequestId());
-            log.warn(interfaceName + "被限流" + rpcResponse);
-
-            return rpcResponse;
-//            return RpcResponse.fail("服务限流，接口 " + interfaceName + " 当前无法处理请求。请稍后再试。",rpcRequest.getRequestId());
-        }
-        // 得到服务端相应服务实现类
-        Object service = serviceProvider.getService(interfaceName);
-        // 反射调用方法
-        Method method = null;
-        try {
-            method = service.getClass().getMethod(rpcRequest.getMethodName(), rpcRequest.getParamTypes());
-            Object invoke = method.invoke(service, rpcRequest.getParams());
-            return RpcResponse.success(invoke);
-        } catch (NoSuchMethodException | IllegalAccessException | InvocationTargetException e) {
-            log.error("方法执行错误，接口: {}, 方法: {}", interfaceName, rpcRequest.getMethodName(), e);
-            return RpcResponse.fail("方法执行错误");
-        }
     }
 }

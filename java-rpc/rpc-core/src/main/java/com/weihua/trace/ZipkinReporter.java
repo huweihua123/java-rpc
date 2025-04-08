@@ -1,7 +1,7 @@
 /*
  * @Author: weihua hu
  * @Date: 2025-03-31 19:15:33
- * @LastEditTime: 2025-04-03 15:04:46
+ * @LastEditTime: 2025-04-06 23:56:39
  * @LastEditors: weihua hu
  * @Description: 
  */
@@ -14,25 +14,75 @@ import zipkin2.reporter.okhttp3.OkHttpSender;
 
 @Log4j2
 public class ZipkinReporter {
-    private static final String ZIPKIN_URL = "http://localhost:9411/api/v2/spans"; // Zipkin 服务器地址
+    private static AsyncReporter<Span> reporter;
+    private static OkHttpSender sender;
 
-    private static final AsyncReporter<Span> reporter;
+    // 初始化标志，用于延迟初始化
+    private static volatile boolean initialized = false;
+    private static final Object INIT_LOCK = new Object();
 
-    static {
-        // 初始化 Zipkin 上报器
-        OkHttpSender sender = OkHttpSender.create(ZIPKIN_URL);
-        reporter = AsyncReporter.create(sender);
+    /**
+     * 初始化 Zipkin Reporter
+     * 使用懒加载模式，仅在首次使用时初始化
+     */
+    private static void initializeReporter() {
+        if (!initialized) {
+            synchronized (INIT_LOCK) {
+                if (!initialized) {
+                    if (!ZipkinConfig.isEnabled()) {
+                        log.info("Zipkin 追踪已禁用，不会报告追踪数据");
+                        initialized = true;
+                        return;
+                    }
+
+                    try {
+                        String zipkinUrl = ZipkinConfig.getZipkinUrl();
+                        int batchSize = ZipkinConfig.getSpanBatchSize();
+                        int flushInterval = ZipkinConfig.getFlushIntervalSeconds();
+
+                        // 创建 Zipkin 发送器
+                        sender = OkHttpSender.create(zipkinUrl);
+
+                        // 创建异步 Reporter
+                        reporter = AsyncReporter.builder(sender)
+                                .messageMaxBytes(5 * 1024 * 1024) // 5MB
+                                .messageTimeout(flushInterval, java.util.concurrent.TimeUnit.SECONDS)
+                                .queuedMaxSpans(batchSize)
+                                .build();
+
+                        log.info("Zipkin Reporter 初始化成功 - URL: {}", zipkinUrl);
+                    } catch (Exception e) {
+                        log.error("初始化 Zipkin Reporter 失败", e);
+                    } finally {
+                        initialized = true;
+                    }
+                }
+            }
+        }
     }
 
     /**
      * 上报 Span 数据到 Zipkin
      */
-
     public static void reportSpan(
             String traceId, String spanId, String parentSpanId,
             String name, long startTimestamp, long duration,
             String serviceName, String type,
-            boolean success, String errorMessage) { // 添加成功状态和错误信息参数
+            boolean success, String errorMessage) {
+
+        // 如果 Zipkin 未开启，直接返回
+        if (!ZipkinConfig.isEnabled()) {
+            return;
+        }
+
+        // 懒加载初始化
+        initializeReporter();
+
+        // 如果初始化失败，reporter 可能为空
+        if (reporter == null) {
+            log.warn("无法上报 span: Zipkin Reporter 未正确初始化");
+            return;
+        }
 
         Span.Builder spanBuilder = Span.newBuilder()
                 .traceId(traceId)
@@ -54,10 +104,38 @@ public class ZipkinReporter {
 
         Span span = spanBuilder.build();
         reporter.report(span);
-        log.info("span:{} 上报成功 [状态:{}]", span, success ? "成功" : "失败");
+
+        if (log.isDebugEnabled()) {
+            log.debug("span:{} 上报成功 [状态:{}]", span, success ? "成功" : "失败");
+        }
     }
 
     public static void close() {
-        reporter.close();
+        if (reporter != null) {
+            try {
+                reporter.close();
+                log.info("Zipkin Reporter 已关闭");
+            } catch (Exception e) {
+                log.error("关闭 Zipkin Reporter 时发生异常", e);
+            }
+        }
+
+        if (sender != null) {
+            try {
+                sender.close();
+            } catch (Exception e) {
+                log.error("关闭 Zipkin Sender 时发生异常", e);
+            }
+        }
+    }
+
+    /**
+     * 重新初始化 Reporter
+     * 用于配置变更后刷新
+     */
+    public static void reset() {
+        close();
+        initialized = false;
+        log.info("Zipkin Reporter 已重置，将在下次使用时重新初始化");
     }
 }

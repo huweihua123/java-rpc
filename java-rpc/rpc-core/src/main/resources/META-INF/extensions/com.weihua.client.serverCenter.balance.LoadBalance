@@ -1,0 +1,5 @@
+consistentHash=com.weihua.client.serverCenter.balance.impl.ConsistencyHashBalance
+random=com.weihua.client.serverCenter.balance.impl.RandomBalance
+roundRobin=com.weihua.client.serverCenter.balance.impl.RoundLoadBalance
+leastActive=com.weihua.client.serverCenter.balance.impl.LeastActiveLoadBalance
+weightedResponseTime=com.weihua.client.serverCenter.balance.impl.WeightedResponseTimeLoadBalance

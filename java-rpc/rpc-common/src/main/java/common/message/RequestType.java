@@ -7,15 +7,27 @@
  */
 package common.message;
 
-import lombok.AllArgsConstructor;
-
-@AllArgsConstructor
+/**
+ * RPC请求类型枚举
+ */
 public enum RequestType {
-    NORMAL(0), HEARTBEAT(1);
+    /**
+     * 普通业务请求
+     */
+    NORMAL,
 
-    private int code;
+    /**
+     * 心跳请求
+     */
+    HEARTBEAT,
 
-    public int getCode() {
-        return code;
-    }
+    /**
+     * 服务注册请求
+     */
+    REGISTER,
+
+    /**
+     * 服务订阅请求
+     */
+    SUBSCRIBE
 }
