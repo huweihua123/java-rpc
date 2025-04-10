@@ -1,0 +1,6 @@
+com/weihua/rpc/example/common/api/UserService.class
+com/weihua/rpc/example/common/api/OrderService.class
+com/weihua/rpc/example/common/model/Order$OrderBuilder.class
+com/weihua/rpc/example/common/model/User$UserBuilder.class
+com/weihua/rpc/example/common/model/User.class
+com/weihua/rpc/example/common/model/Order.class

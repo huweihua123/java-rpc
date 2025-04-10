@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="CompilerConfiguration">
+    <annotationProcessing>
+      <profile name="Maven default annotation processors profile" enabled="true">
+        <sourceOutputDir name="target/generated-sources/annotations" />
+        <sourceTestOutputDir name="target/generated-test-sources/test-annotations" />
+        <outputRelativeToContentRoot value="true" />
+        <module name="rpc-common" />
+        <module name="rpc-spring-boot-starter" />
+        <module name="rpc-example-consumer" />
+        <module name="rpc-example-provider" />
+        <module name="rpc-example-common" />
+        <module name="rpc-spring" />
+        <module name="rpc-core" />
+      </profile>
+    </annotationProcessing>
+    <bytecodeTargetLevel>
+      <module name="rpc-api" target="11" />
+    </bytecodeTargetLevel>
+  </component>
+</project>

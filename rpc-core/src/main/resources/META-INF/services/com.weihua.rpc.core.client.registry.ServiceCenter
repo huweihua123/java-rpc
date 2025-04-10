@@ -1,0 +1,3 @@
+com.weihua.rpc.core.client.registry.impl.ConsulServiceCenter
+com.weihua.rpc.core.client.registry.impl.ZkServiceCenter
+com.weihua.rpc.core.client.registry.impl.LocalServiceCenter

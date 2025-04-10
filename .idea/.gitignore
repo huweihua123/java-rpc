@@ -1,0 +1,149 @@
+### Java ###
+# 编译产物
+*.class
+*.war
+*.ear
+*.jar
+
+# 日志文件
+*.log
+*.log.*
+
+# 敏感文件（密钥、密码等）
+*.keystore
+*.jks
+*.p12
+*.cert
+*.key
+
+# 依赖目录（Maven会自动下载）
+lib/
+libs/
+
+# JUnit测试报告
+junitreports/
+TEST-*.xml
+
+# Jacoco覆盖率报告
+*.exec
+/jacoco.exec
+
+
+### Maven ###
+# Maven构建输出目录
+target/
+**/target/
+build/
+**/build/
+
+# Maven包装器下载的jar
+.mvn/wrapper/maven-wrapper.jar
+
+# 依赖冲突调试文件
+dependency-reduced-pom.xml
+
+# Release签名文件
+*.asc
+*.sha1
+*.md5
+*.version
+
+# Maven版本控制文件
+maven-wrapper.properties
+
+
+### IDE ###
+# IntelliJ IDEA
+.idea/
+*.iml
+*.ipr
+*.iws
+out/
+**/out/
+*.workspace
+
+# VS Code
+.vscode/
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+*.code-workspace
+
+# 通用IDE文件
+.classpath
+.project
+.settings/
+.factorypath
+.springBeans
+bin/
+.nb-gradle/
+
+
+### 操作系统 ###
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Windows
+Thumbs.db
+ehthumbs*.db
+[Dd]esktop.ini
+$RECYCLE.BIN/
+*.lnk
+
+# Linux
+*~
+.fuse_hidden*
+.directory
+.trash-*/
+
+
+### 编辑器 ###
+# Vim交换文件
+*.swp
+*.swo
+*.un~
+
+# Sublime Text
+*.sublime-workspace
+*.sublime-project
+
+# Visual Studio
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+
+### 其他 ###
+# 本地环境变量文件
+.env
+.env.local
+.env.development
+.env.test
+
+# 缓存/临时文件
+.cache/
+.tmp/
+temp/
+*.tmp
+*.bak
+*.cache
+*.diff
+
+# 大文件存储系统
+*.hprof
+*.pyc
+*.rar
+*.zip
+*.tar.gz
+*.7z
+
+# 文档生成
+apidocs/
+**/apidocs/
+/docs/html/
+/docs/pdf/

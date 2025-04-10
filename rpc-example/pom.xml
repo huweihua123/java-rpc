@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    
+    <parent>
+        <groupId>com.weihua</groupId>
+        <artifactId>java-rpc</artifactId>
+        <version>1.0.0</version>
+    </parent>
+    
+    <groupId>com.weihua</groupId>
+    <artifactId>rpc-example</artifactId>
+    <version>1.0.0</version>
+    <packaging>pom</packaging>
+    <name>RPC Example</name>
+    <description>RPC Framework Examples</description>
+
+    <modules>
+        <module>rpc-example-common</module>
+        <module>rpc-example-provider</module>
+        <module>rpc-example-consumer</module>
+    </modules>
+
+    <properties>
+        <java.version>1.8</java.version>
+        <maven.compiler.source>${java.version}</maven.compiler.source>
+        <maven.compiler.target>${java.version}</maven.compiler.target>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
+    </properties>
+    
+    <dependencyManagement>
+        <dependencies>
+            <!-- Spring Boot -->
+            <dependency>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-dependencies</artifactId>
+                <version>${spring-boot.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+            
+            <!-- 示例模块内部依赖 -->
+            <dependency>
+                <groupId>com.weihua</groupId>
+                <artifactId>rpc-example-common</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+</project>

@@ -1,0 +1,4 @@
+com/weihua/rpc/example/consumer/service/DemoService.class
+com/weihua/rpc/example/consumer/controller/OrderController.class
+com/weihua/rpc/example/consumer/controller/UserController.class
+com/weihua/rpc/example/consumer/RpcConsumerApplication.class

@@ -1,0 +1,3 @@
+org.springframework.boot.autoconfigure.EnableAutoConfiguration=\
+com.weihua.rpc.spring.config.RpcClientConfiguration,\
+com.weihua.rpc.spring.config.RpcServerConfiguration
