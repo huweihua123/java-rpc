@@ -19,12 +19,13 @@ rpc:
     type: consul
     address: 127.0.0.1:8500
   ratelimit:
-    enabled: true
+    enabled: false
     default:
       qps: 100
 
 # 日志配置
 logging:
   level:
-    com.weihua.rpc: debug
+    com.weihua.rpc: info
     root: warn
+

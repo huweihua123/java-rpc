@@ -16,7 +16,7 @@ import java.lang.annotation.*;
  */
 @Documented
 @Retention(RetentionPolicy.RUNTIME)
-@Target({ ElementType.TYPE, ElementType.METHOD })
+@Target({ ElementType.TYPE }) // 只能用于类级别
 @Component
 public @interface RpcService {
 
@@ -36,7 +36,8 @@ public @interface RpcService {
     int weight() default 100;
 
     /**
-     * 是否可重试，标记方法是否幂等并可安全重试
+     * @deprecated 使用@Retryable注解替代，并且只能在方法上使用
      */
+    @Deprecated
     boolean retryable() default false;
 }

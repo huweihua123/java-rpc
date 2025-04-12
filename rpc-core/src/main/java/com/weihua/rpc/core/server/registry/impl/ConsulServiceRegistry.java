@@ -7,6 +7,7 @@ import com.orbitz.consul.model.agent.Registration;
 import com.weihua.rpc.core.condition.ConditionalOnServerMode;
 import com.weihua.rpc.core.server.annotation.MethodSignature;
 import com.weihua.rpc.core.server.annotation.RateLimit;
+import com.weihua.rpc.core.server.annotation.Retryable;
 import com.weihua.rpc.core.server.annotation.RpcService;
 import com.weihua.rpc.core.server.config.RegistryConfig;
 import com.weihua.rpc.core.server.registry.ServiceRegistry;
@@ -30,7 +31,8 @@ import java.util.Map;
  */
 @Slf4j
 @Component("consulServiceRegistry")
-// @ConditionalOnExpression("'${rpc.mode:server}'.equals('server') && '${rpc.registry.type:local}'.equals('consul')")
+// @ConditionalOnExpression("'${rpc.mode:server}'.equals('server') &&
+// '${rpc.registry.type:local}'.equals('consul')")
 @ConditionalOnServerMode
 @ConditionalOnProperty(name = "rpc.registry.type", havingValue = "consul", matchIfMissing = false)
 public class ConsulServiceRegistry implements ServiceRegistry {
@@ -89,27 +91,30 @@ public class ConsulServiceRegistry implements ServiceRegistry {
 
             // 获取可重试方法
             List<String> retryableMethods = getRetryableMethod(clazz);
-            
+
             // 获取限流配置
-            Map<String, Integer> rateLimitMethods = getRateLimitMethods(clazz);
+            // Map<String, Integer> rateLimitMethods = getRateLimitMethods(clazz);
 
             // 准备元数据
             Map<String, String> meta = new HashMap<>();
             meta.put("version", "1.0.0"); // 版本信息
             meta.put("interface", serviceName); // 接口名称
             meta.put("containerized", "true"); // 标记为容器化服务
+            log.info("注册可重试方法: {}", retryableMethods);
+//            log.info("注册限流方法: {}", rateLimitMethods);
 
             // 添加可重试方法信息到元数据
             for (String method : retryableMethods) {
+                log.info("注册可重试方法: {}", method);
                 String normalizedMethod = MethodSignature.toConsulFormat(method);
                 meta.put("retryable-" + normalizedMethod, "true");
             }
-            
-            // 添加限流方法信息到元数据
-            for (Map.Entry<String, Integer> entry : rateLimitMethods.entrySet()) {
-                String normalizedMethod = MethodSignature.toConsulFormat(entry.getKey());
-                meta.put("ratelimit-" + normalizedMethod, entry.getValue().toString());
-            }
+
+            // // 添加限流方法信息到元数据
+            // for (Map.Entry<String, Integer> entry : rateLimitMethods.entrySet()) {
+            // String normalizedMethod = MethodSignature.toConsulFormat(entry.getKey());
+            // meta.put("ratelimit-" + normalizedMethod, entry.getValue().toString());
+            // }
 
             // 创建TCP健康检查 - 使用配置的参数
             Registration.RegCheck check = Registration.RegCheck.tcp(
@@ -183,44 +188,51 @@ public class ConsulServiceRegistry implements ServiceRegistry {
     private List<String> getRetryableMethod(Class<?> clazz) {
         List<String> retryableMethodSignatures = new ArrayList<>();
 
-        // 查找类上的RpcService注解
-        RpcService classAnnotation = clazz.getAnnotation(RpcService.class);
-        boolean classRetryable = (classAnnotation != null && classAnnotation.retryable());
-
-        // 扫描所有方法
+        // 扫描所有方法，不仅仅是接口声明的方法
         Method[] methods = clazz.getMethods();
         for (Method method : methods) {
-            // 方法上的注解优先于类上的注解
-            RpcService methodAnnotation = method.getAnnotation(RpcService.class);
-            boolean isRetryable = (methodAnnotation != null && methodAnnotation.retryable())
-                    || (methodAnnotation == null && classRetryable);
+            // 检查方法是否有@Retryable注解
+            Retryable retryableAnnotation = method.getAnnotation(Retryable.class);
 
-            if (isRetryable) {
+            if (retryableAnnotation != null) {
+                log.info("方法上存在@Retryable注解: {}", method.getName());
                 String methodSignature = MethodSignature.generate(clazz, method);
                 retryableMethodSignatures.add(methodSignature);
-                log.debug("标记可重试方法: {}", methodSignature);
+                log.info("标记可重试方法(@Retryable): {}, 最大重试次数: {}",
+                        methodSignature, retryableAnnotation.maxRetries());
+                // 留空白行以便检查日志
+
+            } else {
+                // 向后兼容: 检查方法上的旧RpcService注解
+                RpcService methodRpcService = method.getAnnotation(RpcService.class);
+                if (methodRpcService != null && methodRpcService.retryable()) {
+                    String methodSignature = MethodSignature.generate(clazz, method);
+                    retryableMethodSignatures.add(methodSignature);
+                    log.warn("标记可重试方法(已废弃的RpcService.retryable): {}, 请改用@Retryable",
+                            methodSignature);
+                }
             }
         }
 
         return retryableMethodSignatures;
     }
-    
+
     /**
      * 获取服务方法限流配置
      */
     private Map<String, Integer> getRateLimitMethods(Class<?> clazz) {
         Map<String, Integer> rateLimitMethods = new HashMap<>();
-        
+
         // 检查类级别限流注解
         RateLimit classRateLimit = clazz.getAnnotation(RateLimit.class);
         int defaultQps = classRateLimit != null && classRateLimit.enabled() ? classRateLimit.qps() : -1;
-        
+
         // 扫描所有方法
         Method[] methods = clazz.getMethods();
         for (Method method : methods) {
             // 检查方法级别限流注解
             RateLimit methodRateLimit = method.getAnnotation(RateLimit.class);
-            
+
             // 方法注解优先，其次是类注解
             if (methodRateLimit != null && methodRateLimit.enabled()) {
                 String methodSignature = MethodSignature.generate(clazz, method);
@@ -232,7 +244,7 @@ public class ConsulServiceRegistry implements ServiceRegistry {
                 log.debug("类级限流配置应用于方法: {} = {} qps", methodSignature, defaultQps);
             }
         }
-        
+
         return rateLimitMethods;
     }
 

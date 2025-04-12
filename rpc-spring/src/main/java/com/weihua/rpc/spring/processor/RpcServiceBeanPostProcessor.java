@@ -1,12 +1,13 @@
 /*
  * @Author: weihua hu
  * @Date: 2025-04-10 01:32:34
- * @LastEditTime: 2025-04-10 16:33:26
+ * @LastEditTime: 2025-04-12 20:46:21
  * @LastEditors: weihua hu
  * @Description: 
  */
 package com.weihua.rpc.spring.processor;
 
+import com.weihua.rpc.core.server.annotation.MethodSignature;
 import com.weihua.rpc.core.server.annotation.RateLimit;
 import com.weihua.rpc.core.server.provider.ServiceProvider;
 import com.weihua.rpc.spring.annotation.RpcService;
@@ -31,7 +32,7 @@ public class RpcServiceBeanPostProcessor implements BeanPostProcessor {
 
     @Autowired
     private ServiceProvider serviceProvider;
-    
+
     // 缓存处理过的服务接口注解
     private final Map<Class<?>, Map<String, Annotation>> interfaceAnnotationCache = new HashMap<>();
 
@@ -81,57 +82,57 @@ public class RpcServiceBeanPostProcessor implements BeanPostProcessor {
     private void applyServiceAnnotations(Class<?> interfaceClass, Class<?> implClass) {
         // 获取或创建接口注解缓存
         Map<String, Annotation> methodAnnotations = interfaceAnnotationCache.computeIfAbsent(
-            interfaceClass, k -> new HashMap<>());
-        
+                interfaceClass, k -> new HashMap<>());
+
         // 处理接口级别的注解
         processClassAnnotations(interfaceClass, implClass);
-        
+
         // 处理接口方法级别的注解
         for (Method interfaceMethod : interfaceClass.getDeclaredMethods()) {
             try {
                 Method implMethod = implClass.getMethod(
-                    interfaceMethod.getName(), interfaceMethod.getParameterTypes());
-                
+                        interfaceMethod.getName(), interfaceMethod.getParameterTypes());
+
                 // 处理重试注解
-                processRetryAnnotation(interfaceMethod, implMethod);
-                
+                // processRetryAnnotation(interfaceMethod, implMethod);
+
                 // 处理限流注解
                 processRateLimitAnnotation(interfaceMethod, implMethod);
-                
+
             } catch (NoSuchMethodException e) {
                 log.warn("实现类{}中找不到接口方法: {}", implClass.getName(), interfaceMethod.getName());
             }
         }
     }
-    
+
     /**
      * 处理类级别注解的继承
      */
     private void processClassAnnotations(Class<?> interfaceClass, Class<?> implClass) {
         // 处理RpcService注解
-        com.weihua.rpc.core.server.annotation.RpcService interfaceRpcService = 
-            interfaceClass.getAnnotation(com.weihua.rpc.core.server.annotation.RpcService.class);
-            
+        com.weihua.rpc.core.server.annotation.RpcService interfaceRpcService = interfaceClass
+                .getAnnotation(com.weihua.rpc.core.server.annotation.RpcService.class);
+
         if (interfaceRpcService != null) {
             log.debug("接口{}上存在@RpcService注解", interfaceClass.getName());
-            
+
             // 检查实现类是否已有该注解
-            com.weihua.rpc.core.server.annotation.RpcService implRpcService = 
-                implClass.getAnnotation(com.weihua.rpc.core.server.annotation.RpcService.class);
-                
+            com.weihua.rpc.core.server.annotation.RpcService implRpcService = implClass
+                    .getAnnotation(com.weihua.rpc.core.server.annotation.RpcService.class);
+
             // 如果接口有注解但实现类没有，可以通过动态代理等方式应用接口的注解
             if (implRpcService == null) {
                 log.debug("将接口的@RpcService注解属性应用到实现类: {}", implClass.getName());
                 // 此处可以实现动态代理或元数据保存逻辑
             }
         }
-        
+
         // 处理RateLimit注解
         RateLimit interfaceRateLimit = interfaceClass.getAnnotation(RateLimit.class);
         if (interfaceRateLimit != null) {
-            log.debug("接口{}上存在@RateLimit注解, QPS={}", 
-                interfaceClass.getName(), interfaceRateLimit.qps());
-            
+            log.debug("接口{}上存在@RateLimit注解, QPS={}",
+                    interfaceClass.getName(), interfaceRateLimit.qps());
+
             // 检查实现类是否已有该注解
             RateLimit implRateLimit = implClass.getAnnotation(RateLimit.class);
             if (implRateLimit == null) {
@@ -140,48 +141,41 @@ public class RpcServiceBeanPostProcessor implements BeanPostProcessor {
             }
         }
     }
-    
-    /**
-     * 处理方法级别重试注解的继承
-     */
-    private void processRetryAnnotation(Method interfaceMethod, Method implMethod) {
-        // 获取接口方法上的RpcService注解
-        com.weihua.rpc.core.server.annotation.RpcService interfaceAnnotation = 
-            AnnotationUtils.findAnnotation(interfaceMethod, com.weihua.rpc.core.server.annotation.RpcService.class);
-            
-        // 获取实现方法上的RpcService注解
-        com.weihua.rpc.core.server.annotation.RpcService implAnnotation = 
-            AnnotationUtils.findAnnotation(implMethod, com.weihua.rpc.core.server.annotation.RpcService.class);
-            
-        // 如果接口方法有注解但实现方法没有
-        if (interfaceAnnotation != null && implAnnotation == null) {
-            log.debug("将接口方法{}的@RpcService注解应用到实现方法, retryable={}", 
-                interfaceMethod.getName(), interfaceAnnotation.retryable());
-                
-            // 此处可以通过动态代理或元数据保存的方式应用注解
-        }
-        
-        // 如果都有注解，实现方法的优先级更高(已经在框架其他地方处理)
-    }
-    
+
     /**
      * 处理方法级别限流注解的继承
      */
     private void processRateLimitAnnotation(Method interfaceMethod, Method implMethod) {
         // 获取接口方法上的RateLimit注解
-        RateLimit interfaceAnnotation = 
-            AnnotationUtils.findAnnotation(interfaceMethod, RateLimit.class);
-            
+        RateLimit interfaceAnnotation = AnnotationUtils.findAnnotation(interfaceMethod, RateLimit.class);
+
         // 获取实现方法上的RateLimit注解
-        RateLimit implAnnotation = 
-            AnnotationUtils.findAnnotation(implMethod, RateLimit.class);
-            
-        // 如果接口方法有注解但实现方法没有
-        if (interfaceAnnotation != null && implAnnotation == null) {
-            log.debug("将接口方法{}的@RateLimit注解应用到实现方法, qps={}", 
-                interfaceMethod.getName(), interfaceAnnotation.qps());
-                
-            // 此处可以通过动态代理或元数据保存的方式应用注解
+        RateLimit implAnnotation = AnnotationUtils.findAnnotation(implMethod, RateLimit.class);
+
+        // 使用实际有效的注解（优先使用实现类注解）
+        RateLimit effectiveAnnotation = implAnnotation != null ? implAnnotation : interfaceAnnotation;
+
+        // 如果存在有效的注解，注册到ServiceProvider的限流管理器
+        if (effectiveAnnotation != null && effectiveAnnotation.enabled()) {
+            // 获取方法签名
+            String methodSignature = MethodSignature.generate(interfaceMethod.getDeclaringClass(), interfaceMethod);
+
+            // 更新方法QPS限制
+            serviceProvider.getRateLimitProvider().updateMethodQps(methodSignature, effectiveAnnotation.qps());
+
+            // 检查是否明确指定了限流策略
+            com.weihua.rpc.core.server.annotation.RateLimit.Strategy strategy = effectiveAnnotation.strategy();
+            if (strategy != com.weihua.rpc.core.server.annotation.RateLimit.Strategy.DEFAULT) {
+                // 如果注解中明确指定了策略，则使用注解中的策略覆盖默认策略
+                serviceProvider.getRateLimitProvider().updateMethodStrategy(methodSignature, strategy);
+                log.debug("为方法{}注册限流配置: {} QPS, 策略={} (注解指定)",
+                        methodSignature, effectiveAnnotation.qps(), strategy);
+            } else {
+                // 使用默认策略，不做额外处理，由RateLimitProvider提供默认策略
+                log.debug("为方法{}注册限流配置: {} QPS, 策略=默认",
+                        methodSignature, effectiveAnnotation.qps());
+            }
         }
+        // 如果没有注解，什么都不做，表示该方法不需要限流
     }
 }

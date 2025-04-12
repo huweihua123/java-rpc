@@ -74,5 +74,5 @@ rpc:
 logging:
   level:
     com.weihua.rpc: info           # 框架日志级别
-    org.springframework.boot.autoconfigure.condition: DEBUG  # 条件评估日志(调试时开启)
+    org.springframework.boot.autoconfigure.condition: info  # 条件评估日志(调试时开启)
     root: warn

@@ -1,7 +1,7 @@
 /*
  * @Author: weihua hu
  * @Date: 2025-04-10 02:23:13
- * @LastEditTime: 2025-04-10 02:23:15
+ * @LastEditTime: 2025-04-12 20:28:41
  * @LastEditors: weihua hu
  * @Description: 
  */
@@ -17,8 +17,6 @@ import io.netty.channel.ChannelPipeline;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.handler.timeout.IdleStateHandler;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Component;
 
 import java.util.concurrent.TimeUnit;
 

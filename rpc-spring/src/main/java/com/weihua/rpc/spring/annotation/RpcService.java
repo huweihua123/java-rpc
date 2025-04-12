@@ -36,8 +36,4 @@ public @interface RpcService {
      */
     String group() default "default";
 
-    /**
-     * 是否可重试（幂等方法）
-     */
-    boolean retryable() default false;
 }

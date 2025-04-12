@@ -29,31 +29,23 @@ import java.util.concurrent.locks.ReentrantLock;
 @Component
 public class InvokerManager {
 
+    // 按地址存储Invoker（每个地址一个固定Invoker）
+    private final Map<InetSocketAddress, Invoker> invokerMap = new ConcurrentHashMap<>();
+    // 按地址存储服务下线状态
+    private final Map<InetSocketAddress, ServiceStatus> serviceStatusMap = new ConcurrentHashMap<>();
+    // 按服务名存储关联的地址列表
+    private final Map<String, Set<InetSocketAddress>> serviceAddressMap = new ConcurrentHashMap<>();
+    // 新增方法：跟踪已订阅的服务
+    private final Set<String> subscribedServices = ConcurrentHashMap.newKeySet();
+    // 连接创建锁
+    private final ReentrantLock lock = new ReentrantLock();
     @Autowired
     private ClientConfig clientConfig;
-
     @Autowired
     @Lazy
     private NettyRpcClient nettyRpcClient;
-
     @Autowired
     private ServiceAddressCache addressCache;
-
-    // 按地址存储Invoker（每个地址一个固定Invoker）
-    private final Map<InetSocketAddress, Invoker> invokerMap = new ConcurrentHashMap<>();
-
-    // 按地址存储服务下线状态
-    private final Map<InetSocketAddress, ServiceStatus> serviceStatusMap = new ConcurrentHashMap<>();
-
-    // 按服务名存储关联的地址列表
-    private final Map<String, Set<InetSocketAddress>> serviceAddressMap = new ConcurrentHashMap<>();
-
-    // 新增方法：跟踪已订阅的服务
-    private final Set<String> subscribedServices = ConcurrentHashMap.newKeySet();
-
-    // 连接创建锁
-    private final ReentrantLock lock = new ReentrantLock();
-
     // 连接健康检查调度器
     private ScheduledExecutorService scheduler;
 
@@ -82,39 +74,25 @@ public class InvokerManager {
     private int minRetryInterval;
 
     /**
-     * 连接模式
+     * 将字符串地址转换为InetSocketAddress
      */
-    public enum ConnectionMode {
-        // 立即连接模式 - 发现地址后立即创建连接
-        EAGER,
-        // 延迟连接模式 - 只有在需要调用时才创建连接
-        LAZY
-    }
-
-    /**
-     * 服务状态类，记录服务重连信息
-     */
-    private static class ServiceStatus {
-        // 服务地址
-        final InetSocketAddress address;
-        // 重试次数
-        volatile int retryCount;
-        // 最后一次连接尝试时间
-        volatile long lastRetryTime;
-        // 服务是否已确认下线
-        volatile boolean confirmedDown;
-
-        ServiceStatus(InetSocketAddress address) {
-            this.address = address;
-            this.retryCount = 0;
-            this.lastRetryTime = 0;
-            this.confirmedDown = false;
+    public static InetSocketAddress parseAddress(String address) throws UnknownHostException {
+        String[] parts = address.split(":");
+        if (parts.length != 2) {
+            throw new IllegalArgumentException("地址格式不正确: " + address);
         }
+
+        String host = parts[0];
+        int port = Integer.parseInt(parts[1]);
+
+        // 解析主机名为IP地址
+        InetAddress inetAddress = InetAddress.getByName(host);
+        return new InetSocketAddress(inetAddress, port);
     }
 
     /**
      * 计算下一次重试的间隔时间（指数退避）
-     * 
+     *
      * @param retryCount 当前重试次数
      * @return 下一次重试的间隔时间（毫秒）
      */
@@ -318,6 +296,7 @@ public class InvokerManager {
      */
     private void healthCheckTask() {
         try {
+//            log.info("执行连接健康检查任务");
             for (Map.Entry<InetSocketAddress, Invoker> entry : invokerMap.entrySet()) {
                 InetSocketAddress address = entry.getKey();
                 Invoker invoker = entry.getValue();
@@ -367,6 +346,7 @@ public class InvokerManager {
                     }
                 }
             }
+            printState();
 
             // 打印状态
             if (log.isDebugEnabled()) {
@@ -517,23 +497,6 @@ public class InvokerManager {
     }
 
     /**
-     * 将字符串地址转换为InetSocketAddress
-     */
-    public static InetSocketAddress parseAddress(String address) throws UnknownHostException {
-        String[] parts = address.split(":");
-        if (parts.length != 2) {
-            throw new IllegalArgumentException("地址格式不正确: " + address);
-        }
-
-        String host = parts[0];
-        int port = Integer.parseInt(parts[1]);
-
-        // 解析主机名为IP地址
-        InetAddress inetAddress = InetAddress.getByName(host);
-        return new InetSocketAddress(inetAddress, port);
-    }
-
-    /**
      * 获取或创建Invoker (InetSocketAddress版)
      */
     public Invoker getInvoker(InetSocketAddress socketAddress) throws Exception {
@@ -609,7 +572,7 @@ public class InvokerManager {
 
     /**
      * 根据服务名获取所有可用的Invoker
-     * 
+     *
      * @param serviceName 服务名称
      * @return 所有可用的Invoker列表
      */
@@ -638,10 +601,10 @@ public class InvokerManager {
                 if (status != null && status.confirmedDown) {
                     continue; // 跳过已确认下线的服务
                 }
-                log.info("connectMode: {}", connectionMode);
+//                log.info("connectMode: {}", connectionMode);
                 // 获取或创建Invoker
                 if (connectionMode == ConnectionMode.EAGER) {
-                    log.info("使用EAGER模式获取Invoker: {}:{}", address.getHostString(), address.getPort());
+//                    log.info("使用EAGER模式获取Invoker: {}:{}", address.getHostString(), address.getPort());
                     // 对于EAGER模式，直接从map中获取
                     Invoker invoker = invokerMap.get(address);
                     if (invoker != null && invoker.isAvailable()) {
@@ -691,7 +654,7 @@ public class InvokerManager {
             ServiceStatus status = serviceStatusMap.get(address);
 
             if (invoker != null) {
-                log.debug("连接状态 - 地址: {}:{}, 可用: {}, 活跃请求: {}, 平均响应时间: {}ms, 成功率: {}%, 重试次数: {}{}",
+                log.info("连接状态 - 地址: {}:{}, 可用: {}, 活跃请求: {}, 平均响应时间: {}ms, 成功率: {}%, 重试次数: {}{}",
                         address.getHostString(), address.getPort(),
                         invoker.isAvailable(), invoker.getActiveCount(),
                         String.format("%.2f", invoker.getAvgResponseTime()),
@@ -732,5 +695,36 @@ public class InvokerManager {
         serviceStatusMap.clear();
         started = false;
         log.info("InvokerManager已关闭，所有资源已清理");
+    }
+
+    /**
+     * 连接模式
+     */
+    public enum ConnectionMode {
+        // 立即连接模式 - 发现地址后立即创建连接
+        EAGER,
+        // 延迟连接模式 - 只有在需要调用时才创建连接
+        LAZY
+    }
+
+    /**
+     * 服务状态类，记录服务重连信息
+     */
+    private static class ServiceStatus {
+        // 服务地址
+        final InetSocketAddress address;
+        // 重试次数
+        volatile int retryCount;
+        // 最后一次连接尝试时间
+        volatile long lastRetryTime;
+        // 服务是否已确认下线
+        volatile boolean confirmedDown;
+
+        ServiceStatus(InetSocketAddress address) {
+            this.address = address;
+            this.retryCount = 0;
+            this.lastRetryTime = 0;
+            this.confirmedDown = false;
+        }
     }
 }

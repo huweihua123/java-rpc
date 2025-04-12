@@ -20,7 +20,6 @@ import java.net.InetSocketAddress;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.function.Consumer;
-import java.util.stream.Collectors;
 
 /**
  * Consul服务发现中心实现
@@ -30,34 +29,25 @@ import java.util.stream.Collectors;
 @ConditionalOnExpression("'${rpc.mode:server}'.equals('client') && '${rpc.registry.type:consul}'.equals('consul')")
 public class ConsulServiceCenter implements ServiceCenter {
 
+    // 服务跟踪最长时间 (24小时)，可配置
+    private static final long TRACKING_TIMEOUT_MS = 24 * 60 * 60 * 1000;
+    // 失败计数阈值，超过将减少同步频率
+    private static final int FAILURE_THRESHOLD = 5;
+    // 最大退避时间(秒)
+    private static final int MAX_BACKOFF_SECONDS = 300; // 5分钟
     // 可重试方法缓存
     private final Map<String, Boolean> retryableMethodCache = new ConcurrentHashMap<>();
-
     // 服务元数据缓存
     private final Map<String, Map<String, String>> serviceMetadataCache = new ConcurrentHashMap<>();
-
     // 同步锁，避免并发同步
     private final Map<String, Object> syncLocks = new ConcurrentHashMap<>();
-
     // 服务同步状态记录
     private final Map<String, Long> lastSyncTimeMap = new ConcurrentHashMap<>();
     private final Map<String, Boolean> syncSuccessMap = new ConcurrentHashMap<>();
-
     // 跟踪服务和最后访问时间
     private final Map<String, Long> trackedServicesWithTimestamp = new ConcurrentHashMap<>();
-
     // 跟踪服务失败计数
     private final Map<String, Integer> serviceFailureCount = new ConcurrentHashMap<>();
-
-    // 服务跟踪最长时间 (24小时)，可配置
-    private static final long TRACKING_TIMEOUT_MS = 24 * 60 * 60 * 1000;
-
-    // 失败计数阈值，超过将减少同步频率
-    private static final int FAILURE_THRESHOLD = 5;
-
-    // 最大退避时间(秒)
-    private static final int MAX_BACKOFF_SECONDS = 300; // 5分钟
-
     // 新增：已订阅服务跟踪集合
     private final Set<String> subscribedServices = ConcurrentHashMap.newKeySet();
 
@@ -195,7 +185,7 @@ public class ConsulServiceCenter implements ServiceCenter {
 
     /**
      * 同步指定服务
-     * 
+     *
      * @param serviceName 服务名称
      * @return 同步是否成功
      */
@@ -244,7 +234,7 @@ public class ConsulServiceCenter implements ServiceCenter {
                 syncSuccessMap.put(serviceName, true);
 
                 long syncTime = System.currentTimeMillis() - startTime;
-                log.info("已同步服务 {} 实例列表，共 {} 个实例，耗时 {}ms",
+                log.debug("已同步服务 {} 实例列表，共 {} 个实例，耗时 {}ms",
                         serviceName, addresses.size(), syncTime);
 
                 return true;
@@ -371,14 +361,67 @@ public class ConsulServiceCenter implements ServiceCenter {
             // 优先从元数据缓存获取
             Map<String, String> metadata = getServiceMetadata(serviceName);
             if (metadata != null && !metadata.isEmpty()) {
+                // 1. 检查精确方法的可重试标记
                 String retryableKey = "retryable-" + normalizeMethodSignature(methodSignature);
-                return "true".equalsIgnoreCase(metadata.getOrDefault(retryableKey, "false"));
+                if (metadata.containsKey(retryableKey)) {
+                    return "true".equalsIgnoreCase(metadata.get(retryableKey));
+                }
+
+                // 2. 检查是否有方法重试配置
+                String retryConfigKey = "retryconfig-" + normalizeMethodSignature(methodSignature);
+                if (metadata.containsKey(retryConfigKey)) {
+                    // 只要有配置就认为是可重试的
+                    return true;
+                }
             }
 
             return false;
         } catch (Exception e) {
             log.error("检查方法是否可重试失败: {}", methodSignature, e);
             return false;
+        }
+    }
+
+    /**
+     * 获取方法重试配置
+     *
+     * @param methodSignature 方法签名
+     * @return 重试配置，如果没有则返回null
+     */
+    public Map<String, String> getMethodRetryConfig(String methodSignature) {
+        try {
+            // 从方法签名提取服务名称
+            String serviceName = extractServiceName(methodSignature);
+
+            // 获取服务元数据
+            Map<String, String> metadata = getServiceMetadata(serviceName);
+            if (metadata == null || metadata.isEmpty()) {
+                return null;
+            }
+
+            Map<String, String> retryConfig = new HashMap<>();
+            String normalizedMethod = normalizeMethodSignature(methodSignature);
+
+            // 提取重试相关的元数据
+            for (Map.Entry<String, String> entry : metadata.entrySet()) {
+                String key = entry.getKey();
+
+                // 匹配特定方法的重试配置
+                if (key.startsWith("retry-" + normalizedMethod + "-")) {
+                    String configName = key.substring(("retry-" + normalizedMethod + "-").length());
+                    retryConfig.put(configName, entry.getValue());
+                }
+            }
+
+            // 如果找到了配置，则添加基础标志
+            if (!retryConfig.isEmpty()) {
+                retryConfig.put("retryable", "true");
+            }
+
+            return retryConfig;
+        } catch (Exception e) {
+            log.error("获取方法重试配置失败: {}", methodSignature, e);
+            return null;
         }
     }
 

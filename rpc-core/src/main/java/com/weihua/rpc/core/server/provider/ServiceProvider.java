@@ -3,10 +3,12 @@ package com.weihua.rpc.core.server.provider;
 import com.weihua.rpc.core.condition.ConditionalOnServerMode;
 import com.weihua.rpc.core.server.config.ServerConfig;
 import com.weihua.rpc.core.server.registry.ServiceRegistry;
+import com.weihua.rpc.core.server.ratelimit.RateLimitManager;
 import com.weihua.rpc.core.server.ratelimit.RateLimitProvider;
+
+import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 import javax.annotation.PostConstruct;
@@ -21,7 +23,9 @@ import java.util.Map;
  */
 @Slf4j
 @Component
-// @ConditionalOnProperty(name = "rpc.mode", havingValue = "server", matchIfMissing = false)
+@Data
+// @ConditionalOnProperty(name = "rpc.mode", havingValue = "server",
+// matchIfMissing = false)
 @ConditionalOnServerMode
 public class ServiceProvider {
 
@@ -31,6 +35,9 @@ public class ServiceProvider {
     // 限流提供者
     @Autowired
     private RateLimitProvider rateLimitProvider;
+
+    @Autowired
+    private RateLimitManager rateLimitManager;
 
     // 服务注册中心
     @Autowired

@@ -2,6 +2,7 @@ package com.weihua.rpc.core.server.registry.impl;
 
 import com.weihua.rpc.core.condition.ConditionalOnServerMode;
 import com.weihua.rpc.core.server.annotation.MethodSignature;
+import com.weihua.rpc.core.server.annotation.Retryable;
 import com.weihua.rpc.core.server.annotation.RpcService;
 import com.weihua.rpc.core.server.config.RegistryConfig;
 import com.weihua.rpc.core.server.registry.ServiceRegistry;
@@ -139,22 +140,28 @@ public class ZkServiceRegistry implements ServiceRegistry {
     private List<String> getRetryableMethod(Class<?> clazz) {
         List<String> retryableMethodSignatures = new ArrayList<>();
 
-        // 查找类上的RpcService注解
-        RpcService classAnnotation = clazz.getAnnotation(RpcService.class);
-        boolean classRetryable = (classAnnotation != null && classAnnotation.retryable());
-
-        // 扫描所有方法
+        // 扫描所有方法，检查@Retryable注解
         Method[] methods = clazz.getMethods();
         for (Method method : methods) {
-            // 方法上的注解优先于类上的注解
-            RpcService methodAnnotation = method.getAnnotation(RpcService.class);
-            boolean isRetryable = (methodAnnotation != null && methodAnnotation.retryable())
-                    || (methodAnnotation == null && classRetryable);
+            // 检查方法是否有@Retryable注解
+            Retryable retryableAnnotation = method.getAnnotation(Retryable.class);
+
+            // 向后兼容：检查方法上的RpcService注解(已废弃)
+            RpcService methodRpcService = method.getAnnotation(RpcService.class);
+            boolean isRetryable = (retryableAnnotation != null) ||
+                    (methodRpcService != null && methodRpcService.retryable());
 
             if (isRetryable) {
                 String methodSignature = MethodSignature.generate(clazz, method);
                 retryableMethodSignatures.add(methodSignature);
-                log.debug("标记可重试方法: {}", methodSignature);
+
+                if (retryableAnnotation != null) {
+                    log.info("标记可重试方法(@Retryable): {}, 最大重试次数: {}",
+                            methodSignature, retryableAnnotation.maxRetries());
+                } else {
+                    log.warn("标记可重试方法(已废弃的@RpcService.retryable): {}, 请改用@Retryable",
+                            methodSignature);
+                }
             }
         }
 

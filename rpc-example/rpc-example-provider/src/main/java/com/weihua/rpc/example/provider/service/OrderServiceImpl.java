@@ -1,8 +1,9 @@
 package com.weihua.rpc.example.provider.service;
 
+import com.weihua.rpc.core.server.annotation.RateLimit;
+import com.weihua.rpc.core.server.annotation.Retryable;
 import com.weihua.rpc.example.common.api.OrderService;
 import com.weihua.rpc.example.common.model.Order;
-import com.weihua.rpc.spring.annotation.RpcService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
@@ -12,11 +13,11 @@ import java.util.stream.Collectors;
 
 /**
  * 订单服务实现类
- * 方法上加上retryable=true标记，表明该方法是幂等的，可以安全重试
+ * 使用方法级别的@Retryable注解标记可重试方法
  */
 @Slf4j
 @Service
-@RpcService(interfaceClass = OrderService.class, retryable = true)
+@com.weihua.rpc.spring.annotation.RpcService(interfaceClass = OrderService.class)
 public class OrderServiceImpl implements OrderService {
 
     // 模拟订单存储
@@ -77,12 +78,16 @@ public class OrderServiceImpl implements OrderService {
     }
 
     @Override
+    @RateLimit(qps = 10) // 查询接口QPS高一些
+    @Retryable(description = "查询操作，无副作用")
     public Order getOrderById(String orderId) {
         log.info("获取订单: orderId={}", orderId);
         return orderMap.get(orderId);
     }
 
     @Override
+    @RateLimit(qps = 20000) // 查询接口QPS中等
+    @Retryable(description = "查询操作，无副作用")
     public List<Order> getOrdersByUserId(Long userId) {
         log.info("获取用户订单: userId={}", userId);
         return orderMap.values().stream()
@@ -91,6 +96,8 @@ public class OrderServiceImpl implements OrderService {
     }
 
     @Override
+    @RateLimit(qps = 50, strategy = RateLimit.Strategy.TOKEN_BUCKET) // 创建订单操作限流严格
+    @Retryable(maxRetries = 2, description = "创建订单是幂等的，使用订单ID作为幂等键")
     public String createOrder(Order order) {
         // 确保幂等性：如果订单ID已存在，直接返回
         if (order.getId() != null && orderMap.containsKey(order.getId())) {
@@ -121,6 +128,8 @@ public class OrderServiceImpl implements OrderService {
     }
 
     @Override
+    @RateLimit(qps = 30, fallback = RateLimit.FallbackStrategy.QUEUE) // 支付操作限流更严格，并使用排队策略
+    @Retryable(maxRetries = 2, description = "支付操作是幂等的，使用支付ID作为幂等键")
     public boolean payOrder(String orderId, String paymentId) {
         // 确保幂等性：如果支付ID已处理过，直接返回成功
         if (processedPaymentIds.contains(paymentId)) {
@@ -163,6 +172,8 @@ public class OrderServiceImpl implements OrderService {
     }
 
     @Override
+    @RateLimit(qps = 20, strategy = RateLimit.Strategy.TOKEN_BUCKET) // 取消订单限流最严格，使用漏桶算法
+    @Retryable(description = "取消订单是幂等的，已记录取消状态")
     public boolean cancelOrder(String orderId) {
         // 确保幂等性：如果订单已取消，直接返回成功
         if (cancelledOrders.contains(orderId)) {

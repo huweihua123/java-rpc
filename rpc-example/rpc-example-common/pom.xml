@@ -18,5 +18,9 @@
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>
         </dependency>
+        <dependency>
+            <groupId>com.weihua</groupId>
+            <artifactId>rpc-core</artifactId>
+        </dependency>
     </dependencies>
 </project>

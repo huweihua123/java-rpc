@@ -1,7 +1,7 @@
 /*
  * @Author: weihua hu
  * @Date: 2025-04-12 15:24:03
- * @LastEditTime: 2025-04-12 15:24:08
+ * @LastEditTime: 2025-04-12 20:21:44
  * @LastEditors: weihua hu
  * @Description: 
  */
@@ -14,54 +14,59 @@ import java.lang.annotation.*;
  */
 @Documented
 @Retention(RetentionPolicy.RUNTIME)
-@Target({ElementType.TYPE, ElementType.METHOD})
+@Target({ ElementType.TYPE, ElementType.METHOD })
 public @interface RateLimit {
-    
+
     /**
      * 最大QPS（每秒查询数），默认为100
      */
     int qps() default 100;
-    
+
     /**
-     * 限流策略，默认为令牌桶
+     * 限流策略，默认为DEFAULT（使用配置文件中的全局默认策略）
      */
-    Strategy strategy() default Strategy.TOKEN_BUCKET;
-    
+    Strategy strategy() default Strategy.DEFAULT;
+
     /**
      * 限流降级处理策略
      */
     FallbackStrategy fallback() default FallbackStrategy.REJECT;
-    
+
     /**
      * 是否启用，默认为true
      */
     boolean enabled() default true;
-    
+
     /**
      * 限流策略枚举
      */
     enum Strategy {
         /**
+         * 使用配置文件中定义的默认策略
+         */
+        DEFAULT,
+
+        /**
          * 令牌桶算法
          */
         TOKEN_BUCKET,
-        
+
         /**
          * 漏桶算法
          */
         LEAKY_BUCKET,
-        
+
         /**
          * 滑动窗口
          */
         SLIDING_WINDOW,
-        
+
         /**
          * 计数器
          */
         COUNTER
     }
-    
+
     /**
      * 限流降级处理策略
      */
@@ -70,12 +75,12 @@ public @interface RateLimit {
          * 直接拒绝请求
          */
         REJECT,
-        
+
         /**
          * 请求排队
          */
         QUEUE,
-        
+
         /**
          * 返回默认值
          */
