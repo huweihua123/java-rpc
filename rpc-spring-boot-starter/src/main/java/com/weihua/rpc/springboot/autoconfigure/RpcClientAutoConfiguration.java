@@ -58,7 +58,7 @@ public class RpcClientAutoConfiguration {
         // 从属性中注入配置
         config.setTimeout(clientProperties.getTimeout());
         config.setConnectTimeout(clientProperties.getConnectTimeout());
-        config.setMaxRetries(clientProperties.getRetries());
+        config.setMaxRetryAttempts(clientProperties.getRetries());
         config.setRetryEnable(clientProperties.isRetryEnable());
         config.setRetryIntervalMillis(clientProperties.getRetryInterval());
         config.setServiceVersion(clientProperties.getServiceVersion());

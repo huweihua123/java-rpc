@@ -1,8 +1,0 @@
-/Users/huweihua/java/spring-rpc/java-rpc/rpc-spring/src/main/java/com/weihua/rpc/spring/config/RpcServerConfiguration.java
-/Users/huweihua/java/spring-rpc/java-rpc/rpc-spring/src/main/java/com/weihua/rpc/spring/config/RpcAutoConfiguration.java
-/Users/huweihua/java/spring-rpc/java-rpc/rpc-spring/src/main/java/com/weihua/rpc/spring/processor/RpcReferenceBeanPostProcessor.java
-/Users/huweihua/java/spring-rpc/java-rpc/rpc-spring/src/main/java/com/weihua/rpc/spring/annotation/RpcReference.java
-/Users/huweihua/java/spring-rpc/java-rpc/rpc-spring/src/main/java/com/weihua/rpc/spring/context/RpcSpringContext.java
-/Users/huweihua/java/spring-rpc/java-rpc/rpc-spring/src/main/java/com/weihua/rpc/spring/config/RpcClientConfiguration.java
-/Users/huweihua/java/spring-rpc/java-rpc/rpc-spring/src/main/java/com/weihua/rpc/spring/annotation/RpcService.java
-/Users/huweihua/java/spring-rpc/java-rpc/rpc-spring/src/main/java/com/weihua/rpc/spring/processor/RpcServiceBeanPostProcessor.java

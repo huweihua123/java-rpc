@@ -95,6 +95,7 @@ public class DefaultServiceAddressCache implements ServiceAddressCache {
 
         // 立即通知当前地址
         List<String> currentAddresses = getAddresses(serviceName);
+
         listener.accept(currentAddresses);
     }
 
@@ -139,6 +140,16 @@ public class DefaultServiceAddressCache implements ServiceAddressCache {
         listeners.add(listener);
     }
 
+    @Override
+    public Set<String> getAllServiceNames() {
+        rwLock.readLock().lock();
+        try {
+            return new HashSet<>(addressCache.keySet());
+        } finally {
+            rwLock.readLock().unlock();
+        }
+    }
+
     /**
      * 通知地址变更
      */
@@ -147,6 +158,7 @@ public class DefaultServiceAddressCache implements ServiceAddressCache {
         if (listeners != null) {
             for (Consumer<List<String>> listener : listeners) {
                 try {
+                    log.info(serviceName + " 地址变更通知: {}", addresses);
                     listener.accept(addresses);
                 } catch (Exception e) {
                     log.error("通知地址变更失败: {}", e.getMessage(), e);

@@ -4,12 +4,16 @@ import com.orbitz.consul.AgentClient;
 import com.orbitz.consul.Consul;
 import com.orbitz.consul.model.agent.ImmutableRegistration;
 import com.orbitz.consul.model.agent.Registration;
+import com.weihua.rpc.core.condition.ConditionalOnServerMode;
+import com.weihua.rpc.core.server.annotation.MethodSignature;
+import com.weihua.rpc.core.server.annotation.RateLimit;
 import com.weihua.rpc.core.server.annotation.RpcService;
 import com.weihua.rpc.core.server.config.RegistryConfig;
 import com.weihua.rpc.core.server.registry.ServiceRegistry;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 import javax.annotation.PostConstruct;
@@ -26,7 +30,9 @@ import java.util.Map;
  */
 @Slf4j
 @Component("consulServiceRegistry")
-@ConditionalOnExpression("'${rpc.mode:server}'.equals('server') && '${rpc.registry.type:local}'.equals('consul')")
+// @ConditionalOnExpression("'${rpc.mode:server}'.equals('server') && '${rpc.registry.type:local}'.equals('consul')")
+@ConditionalOnServerMode
+@ConditionalOnProperty(name = "rpc.registry.type", havingValue = "consul", matchIfMissing = false)
 public class ConsulServiceRegistry implements ServiceRegistry {
 
     @Autowired
@@ -83,6 +89,9 @@ public class ConsulServiceRegistry implements ServiceRegistry {
 
             // 获取可重试方法
             List<String> retryableMethods = getRetryableMethod(clazz);
+            
+            // 获取限流配置
+            Map<String, Integer> rateLimitMethods = getRateLimitMethods(clazz);
 
             // 准备元数据
             Map<String, String> meta = new HashMap<>();
@@ -92,9 +101,14 @@ public class ConsulServiceRegistry implements ServiceRegistry {
 
             // 添加可重试方法信息到元数据
             for (String method : retryableMethods) {
-                String normalizedMethod = method.replace('#', '.').replace("(", "_").replace(")", "")
-                        .replace(",", "_").replace(" ", "");
+                String normalizedMethod = MethodSignature.toConsulFormat(method);
                 meta.put("retryable-" + normalizedMethod, "true");
+            }
+            
+            // 添加限流方法信息到元数据
+            for (Map.Entry<String, Integer> entry : rateLimitMethods.entrySet()) {
+                String normalizedMethod = MethodSignature.toConsulFormat(entry.getKey());
+                meta.put("ratelimit-" + normalizedMethod, entry.getValue().toString());
             }
 
             // 创建TCP健康检查 - 使用配置的参数
@@ -182,7 +196,7 @@ public class ConsulServiceRegistry implements ServiceRegistry {
                     || (methodAnnotation == null && classRetryable);
 
             if (isRetryable) {
-                String methodSignature = getMethodSignature(clazz, method);
+                String methodSignature = MethodSignature.generate(clazz, method);
                 retryableMethodSignatures.add(methodSignature);
                 log.debug("标记可重试方法: {}", methodSignature);
             }
@@ -190,24 +204,43 @@ public class ConsulServiceRegistry implements ServiceRegistry {
 
         return retryableMethodSignatures;
     }
+    
+    /**
+     * 获取服务方法限流配置
+     */
+    private Map<String, Integer> getRateLimitMethods(Class<?> clazz) {
+        Map<String, Integer> rateLimitMethods = new HashMap<>();
+        
+        // 检查类级别限流注解
+        RateLimit classRateLimit = clazz.getAnnotation(RateLimit.class);
+        int defaultQps = classRateLimit != null && classRateLimit.enabled() ? classRateLimit.qps() : -1;
+        
+        // 扫描所有方法
+        Method[] methods = clazz.getMethods();
+        for (Method method : methods) {
+            // 检查方法级别限流注解
+            RateLimit methodRateLimit = method.getAnnotation(RateLimit.class);
+            
+            // 方法注解优先，其次是类注解
+            if (methodRateLimit != null && methodRateLimit.enabled()) {
+                String methodSignature = MethodSignature.generate(clazz, method);
+                rateLimitMethods.put(methodSignature, methodRateLimit.qps());
+                log.debug("方法级限流配置: {} = {} qps", methodSignature, methodRateLimit.qps());
+            } else if (defaultQps > 0) {
+                String methodSignature = MethodSignature.generate(clazz, method);
+                rateLimitMethods.put(methodSignature, defaultQps);
+                log.debug("类级限流配置应用于方法: {} = {} qps", methodSignature, defaultQps);
+            }
+        }
+        
+        return rateLimitMethods;
+    }
 
     /**
      * 构建方法签名
      */
     private String getMethodSignature(Class<?> clazz, Method method) {
-        StringBuilder sb = new StringBuilder();
-        sb.append(clazz.getName()).append('#').append(method.getName()).append('(');
-
-        Class<?>[] paramTypes = method.getParameterTypes();
-        for (int i = 0; i < paramTypes.length; i++) {
-            if (i > 0) {
-                sb.append(',');
-            }
-            sb.append(paramTypes[i].getName());
-        }
-        sb.append(')');
-
-        return sb.toString();
+        return MethodSignature.generate(clazz, method);
     }
 
     /**

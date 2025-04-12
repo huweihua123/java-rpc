@@ -2,7 +2,10 @@ package com.weihua.rpc.core.server.ratelimit;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
+
+import com.weihua.rpc.core.condition.ConditionalOnServerMode;
 
 import javax.annotation.PostConstruct;
 import java.util.Map;
@@ -17,6 +20,8 @@ import java.util.concurrent.TimeUnit;
  */
 @Slf4j
 @Component
+//  @ConditionalOnProperty(name = "rpc.mode", havingValue = "server", matchIfMissing = false)
+@ConditionalOnServerMode
 public class RateLimitProvider {
 
     // 默认每个接口的最大QPS

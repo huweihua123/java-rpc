@@ -1,7 +1,7 @@
 /*
  * @Author: weihua hu
  * @Date: 2025-04-10 02:22:26
- * @LastEditTime: 2025-04-10 02:22:28
+ * @LastEditTime: 2025-04-12 13:54:12
  * @LastEditors: weihua hu
  * @Description: 
  */
@@ -55,13 +55,13 @@ public class ServerConfig {
     /**
      * 读空闲超时时间（秒）
      */
-    @Value("${rpc.server.idle.timeout.reader:60}")
+    @Value("${rpc.server.idle.timeout.reader:180}")
     private int readerIdleTime;
 
     /**
      * 写空闲超时时间（秒）
      */
-    @Value("${rpc.server.idle.timeout.writer:0}")
+    @Value("${rpc.server.idle.timeout.writer:60}")
     private int writerIdleTime;
 
     /**

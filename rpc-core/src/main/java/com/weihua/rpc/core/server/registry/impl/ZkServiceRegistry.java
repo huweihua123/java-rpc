@@ -1,5 +1,7 @@
 package com.weihua.rpc.core.server.registry.impl;
 
+import com.weihua.rpc.core.condition.ConditionalOnServerMode;
+import com.weihua.rpc.core.server.annotation.MethodSignature;
 import com.weihua.rpc.core.server.annotation.RpcService;
 import com.weihua.rpc.core.server.config.RegistryConfig;
 import com.weihua.rpc.core.server.registry.ServiceRegistry;
@@ -27,7 +29,10 @@ import java.util.Map;
  */
 @Slf4j
 @Component("zkServiceRegistry")
-@ConditionalOnExpression("'${rpc.mode:server}'.equals('server') && '${rpc.registry.type:local}'.equals('zookeeper')")
+// @ConditionalOnExpression("'${rpc.mode:server}'.equals('server') &&
+// '${rpc.registry.type:local}'.equals('zookeeper')")
+@ConditionalOnServerMode
+@ConditionalOnProperty(name = "rpc.registry.type", havingValue = "zookeeper", matchIfMissing = false)
 public class ZkServiceRegistry implements ServiceRegistry {
 
     @Autowired
@@ -116,8 +121,8 @@ public class ZkServiceRegistry implements ServiceRegistry {
 
         for (String methodSignature : retryableMethods) {
             try {
-                // 创建方法标识节点
-                String methodPath = servicePath + "/methods/" + methodSignature.replace('#', '-');
+                // 创建方法标识节点 - 使用统一的方法签名格式转换
+                String methodPath = servicePath + "/methods/" + MethodSignature.toZkFormat(methodSignature);
                 if (client.checkExists().forPath(methodPath) == null) {
                     client.create().creatingParentsIfNeeded().forPath(methodPath, "true".getBytes());
                     log.info("注册可重试方法: {}", methodPath);
@@ -147,32 +152,13 @@ public class ZkServiceRegistry implements ServiceRegistry {
                     || (methodAnnotation == null && classRetryable);
 
             if (isRetryable) {
-                String methodSignature = getMethodSignature(clazz, method);
+                String methodSignature = MethodSignature.generate(clazz, method);
                 retryableMethodSignatures.add(methodSignature);
                 log.debug("标记可重试方法: {}", methodSignature);
             }
         }
 
         return retryableMethodSignatures;
-    }
-
-    /**
-     * 构建方法签名
-     */
-    private String getMethodSignature(Class<?> clazz, Method method) {
-        StringBuilder sb = new StringBuilder();
-        sb.append(clazz.getName()).append('#').append(method.getName()).append('(');
-
-        Class<?>[] paramTypes = method.getParameterTypes();
-        for (int i = 0; i < paramTypes.length; i++) {
-            if (i > 0) {
-                sb.append(',');
-            }
-            sb.append(paramTypes[i].getName());
-        }
-        sb.append(')');
-
-        return sb.toString();
     }
 
     /**

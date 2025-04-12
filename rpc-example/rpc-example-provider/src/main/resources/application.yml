@@ -26,5 +26,5 @@ rpc:
 # 日志配置
 logging:
   level:
-    com.weihua.rpc: info
+    com.weihua.rpc: debug
     root: warn

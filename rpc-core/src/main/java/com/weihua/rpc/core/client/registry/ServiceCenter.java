@@ -1,7 +1,7 @@
 /*
  * @Author: weihua hu
  * @Date: 2025-04-10 02:00:05
- * @LastEditTime: 2025-04-10 18:11:27
+ * @LastEditTime: 2025-04-10 23:45:04
  * @LastEditors: weihua hu
  * @Description:
  */
@@ -12,6 +12,7 @@ import com.weihua.rpc.core.client.invoker.Invoker;
 
 import java.net.InetSocketAddress;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Consumer;
 
 /**
@@ -46,10 +47,18 @@ public interface ServiceCenter {
     boolean isMethodRetryable(String methodSignature);
 
     /**
-     * 订阅服务地址变更
+     * 获取服务元数据信息
      *
      * @param serviceName 服务名称
-     * @param listener    地址变更监听器
+     * @return 元数据信息
+     */
+    Map<String, String> getServiceMetadata(String serviceName);
+
+    /**
+     * 订阅服务地址变更
+     *
+     * @param serviceName, 服务名称
+     * @param listener     地址变更监听器
      */
     void subscribeAddressChange(String serviceName, Consumer<List<String>> listener);
 
@@ -60,6 +69,22 @@ public interface ServiceCenter {
      * @param listener    地址变更监听器
      */
     void unsubscribeAddressChange(String serviceName, Consumer<List<String>> listener);
+
+    /**
+     * 手动触发指定服务的同步
+     * 
+     * @param serviceName 服务名称
+     * @return 同步成功返回true，否则返回false
+     */
+    boolean forceSync(String serviceName);
+
+    /**
+     * 获取服务健康状态
+     * 
+     * @param serviceName 服务名称
+     * @return 如果服务健康返回true，否则返回false
+     */
+    boolean isServiceHealthy(String serviceName);
 
     /**
      * 关闭服务中心连接

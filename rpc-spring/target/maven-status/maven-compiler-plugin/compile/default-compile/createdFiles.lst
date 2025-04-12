@@ -1,9 +1,0 @@
-com/weihua/rpc/spring/config/RpcAutoConfiguration.class
-com/weihua/rpc/spring/processor/RpcServiceBeanPostProcessor.class
-com/weihua/rpc/spring/annotation/RpcService.class
-com/weihua/rpc/spring/context/RpcSpringContext.class
-com/weihua/rpc/spring/config/RpcClientConfiguration.class
-com/weihua/rpc/spring/config/RpcServerConfiguration.class
-com/weihua/rpc/spring/annotation/RpcReference.class
-com/weihua/rpc/spring/processor/RpcReferenceBeanPostProcessor.class
-com/weihua/rpc/spring/processor/RpcServiceBeanPostProcessor$1.class

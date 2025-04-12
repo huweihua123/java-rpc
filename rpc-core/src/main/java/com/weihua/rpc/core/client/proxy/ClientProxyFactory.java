@@ -7,6 +7,8 @@ import com.weihua.rpc.core.client.circuit.CircuitBreakerProvider;
 import com.weihua.rpc.core.client.config.ClientConfig;
 import com.weihua.rpc.core.client.netty.NettyRpcClient;
 import com.weihua.rpc.core.client.registry.ServiceCenter;
+import com.weihua.rpc.core.condition.ConditionalOnClientMode;
+
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -25,7 +27,9 @@ import java.util.concurrent.TimeUnit;
  */
 @Slf4j
 @Component
-@ConditionalOnProperty(name = "rpc.mode", havingValue = "client", matchIfMissing = false)
+// @ConditionalOnProperty(name = "rpc.mode", havingValue = "client",
+// matchIfMissing = false)
+@ConditionalOnClientMode
 public class ClientProxyFactory {
 
     @Autowired
@@ -184,7 +188,7 @@ public class ClientProxyFactory {
             CompletableFuture<RpcResponse> future = new CompletableFuture<>();
 
             // 重试处理
-            int maxRetries = clientConfig.getMaxRetries();
+            int maxRetries = clientConfig.getMaxRetryAttempts();
             executeWithRetry(request, 0, maxRetries, future);
 
             // 等待结果

@@ -1,5 +1,6 @@
 package com.weihua.rpc.core.server.netty;
 
+import com.weihua.rpc.core.condition.ConditionalOnServerMode;
 import com.weihua.rpc.core.server.RpcServer;
 import com.weihua.rpc.core.server.config.ServerConfig;
 import com.weihua.rpc.core.server.netty.handler.NettyServerInitializer;
@@ -26,7 +27,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
  */
 @Slf4j
 @Component
-@ConditionalOnProperty(name = "rpc.mode", havingValue = "server", matchIfMissing = false)
+// @ConditionalOnProperty(name = "rpc.mode", havingValue = "server", matchIfMissing = false)
+@ConditionalOnServerMode
 public class NettyRpcServer implements RpcServer {
 
     @Autowired

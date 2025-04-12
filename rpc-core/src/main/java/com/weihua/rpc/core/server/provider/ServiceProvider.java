@@ -1,5 +1,6 @@
 package com.weihua.rpc.core.server.provider;
 
+import com.weihua.rpc.core.condition.ConditionalOnServerMode;
 import com.weihua.rpc.core.server.config.ServerConfig;
 import com.weihua.rpc.core.server.registry.ServiceRegistry;
 import com.weihua.rpc.core.server.ratelimit.RateLimitProvider;
@@ -20,7 +21,8 @@ import java.util.Map;
  */
 @Slf4j
 @Component
-@ConditionalOnProperty(name = "rpc.mode", havingValue = "server", matchIfMissing = false)
+// @ConditionalOnProperty(name = "rpc.mode", havingValue = "server", matchIfMissing = false)
+@ConditionalOnServerMode
 public class ServiceProvider {
 
     // 服务实例映射表

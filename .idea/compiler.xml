@@ -12,6 +12,7 @@
         <module name="rpc-example-provider" />
         <module name="rpc-example-common" />
         <module name="rpc-spring" />
+        <module name="rpc-example-hybrid" />
         <module name="rpc-core" />
       </profile>
     </annotationProcessing>

@@ -19,16 +19,22 @@ rpc:
     connect-timeout: 5000          # 连接超时(毫秒)
     request-timeout: 5             # 请求超时(秒)
     
-    # 连接池配置
-    connections:
-      max: 4                       # 每个地址最大连接数
-      init: 1                      # 初始连接数
+    # 连接模式配置
+    connection:
+      mode: EAGER                  # 连接模式: EAGER(立即连接), LAZY(按需连接)
     
     # 重试配置
-    retry-enable: true             # 是否启用重试
-    retries: 2                     # 最大重试次数
-    retry-interval: 1000           # 重试间隔(毫秒)
-    retry-only-idempotent: true    # 只重试幂等操作
+    retry:
+      enable: true                 # 是否启用重试
+      max: 5                       # 最大重试次数
+      interval: 1000               # 重试间隔(毫秒)
+      only-idempotent: true        # 只重试幂等操作
+      # 指数退避策略配置
+      backoff:
+        multiplier: 2.0            # 退避乘数
+        max: 30000                 # 最大退避时间(毫秒)
+        jitter: true               # 是否添加随机抖动
+        min: 500                   # 最小重试间隔(毫秒)
     
     # 熔断器配置
     circuit-breaker:

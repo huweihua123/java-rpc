@@ -4,9 +4,10 @@ import com.orbitz.consul.Consul;
 import com.orbitz.consul.HealthClient;
 import com.orbitz.consul.model.health.ServiceHealth;
 import com.weihua.rpc.common.model.RpcRequest;
+import com.weihua.rpc.core.client.cache.ServiceAddressCache;
 import com.weihua.rpc.core.client.config.DiscoveryConfig;
 import com.weihua.rpc.core.client.invoker.Invoker;
-import com.weihua.rpc.core.client.invoker.InvokerFactory;
+import com.weihua.rpc.core.client.pool.InvokerManager;
 import com.weihua.rpc.core.client.registry.ServiceCenter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -29,20 +30,52 @@ import java.util.stream.Collectors;
 @ConditionalOnExpression("'${rpc.mode:server}'.equals('client') && '${rpc.registry.type:consul}'.equals('consul')")
 public class ConsulServiceCenter implements ServiceCenter {
 
-    // 服务缓存
-    private final Map<String, List<String>> serviceCache = new ConcurrentHashMap<>();
     // 可重试方法缓存
     private final Map<String, Boolean> retryableMethodCache = new ConcurrentHashMap<>();
-    // 地址变更监听器
-    private final Map<String, Set<Consumer<List<String>>>> addressChangeListeners = new ConcurrentHashMap<>();
+
+    // 服务元数据缓存
+    private final Map<String, Map<String, String>> serviceMetadataCache = new ConcurrentHashMap<>();
+
+    // 同步锁，避免并发同步
+    private final Map<String, Object> syncLocks = new ConcurrentHashMap<>();
+
+    // 服务同步状态记录
+    private final Map<String, Long> lastSyncTimeMap = new ConcurrentHashMap<>();
+    private final Map<String, Boolean> syncSuccessMap = new ConcurrentHashMap<>();
+
+    // 跟踪服务和最后访问时间
+    private final Map<String, Long> trackedServicesWithTimestamp = new ConcurrentHashMap<>();
+
+    // 跟踪服务失败计数
+    private final Map<String, Integer> serviceFailureCount = new ConcurrentHashMap<>();
+
+    // 服务跟踪最长时间 (24小时)，可配置
+    private static final long TRACKING_TIMEOUT_MS = 24 * 60 * 60 * 1000;
+
+    // 失败计数阈值，超过将减少同步频率
+    private static final int FAILURE_THRESHOLD = 5;
+
+    // 最大退避时间(秒)
+    private static final int MAX_BACKOFF_SECONDS = 300; // 5分钟
+
+    // 新增：已订阅服务跟踪集合
+    private final Set<String> subscribedServices = ConcurrentHashMap.newKeySet();
+
     @Autowired
     private DiscoveryConfig registryConfig;
+
     @Autowired
-    private InvokerFactory invokerFactory;
-    
+    private InvokerManager invokerManager;
+
+    @Autowired
+    private ServiceAddressCache addressCache;
+
     private Consul consulClient;
     // 定时同步任务
     private ScheduledExecutorService scheduler;
+
+    // 同步任务执行器
+    private ExecutorService syncExecutor;
 
     @PostConstruct
     public void init() {
@@ -51,7 +84,7 @@ public class ConsulServiceCenter implements ServiceCenter {
             String address = registryConfig.getAddress();
             String host = address.split(":")[0];
             int port = Integer.parseInt(address.split(":")[1]);
-            this.consulClient = Consul.builder().withUrl(String.format("http://%s:%d", host, port)) // 改用URL格式
+            this.consulClient = Consul.builder().withUrl(String.format("http://%s:%d", host, port))
                     .withConnectTimeoutMillis(registryConfig.getConnectTimeout())
                     .withReadTimeoutMillis(registryConfig.getTimeout())
                     .build();
@@ -62,7 +95,21 @@ public class ConsulServiceCenter implements ServiceCenter {
             throw new RuntimeException("初始化Consul客户端失败", e);
         }
 
-        // 初始化定时同步任务
+        // 初始化同步任务执行器
+        this.syncExecutor = new ThreadPoolExecutor(
+                1, // 核心线程数
+                4, // 最大线程数
+                60, TimeUnit.SECONDS, // 线程存活时间
+                new LinkedBlockingQueue<>(1000), // 工作队列
+                r -> {
+                    Thread t = new Thread(r, "consul-sync-worker");
+                    t.setDaemon(true);
+                    return t;
+                },
+                new ThreadPoolExecutor.CallerRunsPolicy() // 拒绝策略
+        );
+
+        // 初始化定时同步调度器
         initScheduler();
     }
 
@@ -71,71 +118,143 @@ public class ConsulServiceCenter implements ServiceCenter {
      */
     private void initScheduler() {
         this.scheduler = Executors.newScheduledThreadPool(1, r -> {
-            Thread t = new Thread(r, "consul-sync");
+            Thread t = new Thread(r, "consul-sync-scheduler");
             t.setDaemon(true);
+            log.info("Consul服务同步调度器已启动");
             return t;
         });
 
         // 定期同步已订阅的服务
         scheduler.scheduleAtFixedRate(() -> {
             try {
-                // 同步所有已订阅的服务
-                Set<String> services = new HashSet<>(addressChangeListeners.keySet());
+                // 同步所有跟踪的服务
+                long now = System.currentTimeMillis();
+                Set<String> services = new HashSet<>();
+
+                // 添加缓存中的服务
+                services.addAll(addressCache.getAllServiceNames());
+
+                // 添加未过期的跟踪服务
+                trackedServicesWithTimestamp.forEach((service, timestamp) -> {
+                    if (now - timestamp < TRACKING_TIMEOUT_MS) {
+                        services.add(service);
+                    } else {
+                        // 清理过期服务
+                        log.info("清理过期服务跟踪: {}, 已跟踪{}小时无调用",
+                                service, (now - timestamp) / 3600000);
+                        trackedServicesWithTimestamp.remove(service);
+                        serviceFailureCount.remove(service);
+                    }
+                });
+
+                log.info("同步服务 {} 到Consul", services.size());
+
                 for (String service : services) {
-                    syncServiceFromConsul(service);
+                    // 获取失败计数
+                    int failCount = serviceFailureCount.getOrDefault(service, 0);
+
+                    // 根据失败次数调整同步频率
+                    if (failCount > FAILURE_THRESHOLD) {
+                        // 计算跳过概率 (失败次数越多，越可能跳过)
+                        int skipFactor = Math.min(failCount / FAILURE_THRESHOLD, 10);
+                        if (skipFactor > 1 && ThreadLocalRandom.current().nextInt(skipFactor) != 0) {
+                            // 大多数时间跳过同步，但仍然有1/skipFactor概率执行
+                            continue;
+                        }
+                    }
+
+                    // 使用执行器异步执行同步任务
+                    syncExecutor.execute(() -> {
+                        try {
+                            log.info("同步服务 {} 到Consul", service);
+                            boolean success = syncServiceFromConsul(service);
+
+                            // 更新失败计数
+                            if (success) {
+                                // 同步成功，重置计数
+                                serviceFailureCount.put(service, 0);
+                            } else {
+                                // 同步失败，增加计数
+                                serviceFailureCount.compute(service, (k, v) -> v == null ? 1 : v + 1);
+                                int newCount = serviceFailureCount.get(service);
+
+                                if (newCount > FAILURE_THRESHOLD) {
+                                    log.warn("服务 {} 同步持续失败 {} 次，将减少同步频率", service, newCount);
+                                }
+                            }
+                        } catch (Exception e) {
+                            log.error("同步服务 {} 失败: {}", service, e.getMessage());
+                        }
+                    });
                 }
             } catch (Exception e) {
-                log.error("定时同步服务失败: {}", e.getMessage(), e);
+                log.error("定时同步服务调度失败: {}", e.getMessage(), e);
             }
         }, 0, registryConfig.getSyncPeriod(), TimeUnit.SECONDS);
     }
 
     /**
      * 同步指定服务
+     * 
+     * @param serviceName 服务名称
+     * @return 同步是否成功
      */
-    private void syncServiceFromConsul(String serviceName) {
-        try {
-            // 查询健康的服务实例
-            HealthClient healthClient = consulClient.healthClient();
-            List<ServiceHealth> services = healthClient.getHealthyServiceInstances(serviceName).getResponse();
+    private boolean syncServiceFromConsul(String serviceName) {
+        // 获取同步锁，避免并发同步同一服务
+        Object syncLock = syncLocks.computeIfAbsent(serviceName, k -> new Object());
 
-            List<String> addresses = new ArrayList<>();
-            for (ServiceHealth service : services) {
-                String address = service.getService().getAddress();
-                int port = service.getService().getPort();
+        synchronized (syncLock) {
+            try {
+                long startTime = System.currentTimeMillis();
 
-                // 如果地址为空，使用节点地址
-                if (address == null || address.isEmpty()) {
-                    address = service.getNode().getAddress();
+                // 查询健康的服务实例
+                HealthClient healthClient = consulClient.healthClient();
+                List<ServiceHealth> services = healthClient.getHealthyServiceInstances(serviceName).getResponse();
+
+                List<String> addresses = new ArrayList<>();
+                Map<String, String> metadata = new HashMap<>();
+
+                for (ServiceHealth service : services) {
+                    String address = service.getService().getAddress();
+                    int port = service.getService().getPort();
+
+                    // 如果地址为空，使用节点地址
+                    if (address == null || address.isEmpty()) {
+                        address = service.getNode().getAddress();
+                    }
+
+                    addresses.add(address + ":" + port);
+
+                    // 收集第一个实例的元数据
+                    if (metadata.isEmpty()) {
+                        metadata.putAll(service.getService().getMeta());
+                    }
                 }
 
-                addresses.add(address + ":" + port);
-            }
+                // 更新到地址缓存
+                addressCache.updateAddresses(serviceName, addresses);
 
-            // 更新缓存
-            serviceCache.put(serviceName, addresses);
-
-            // 通知变更
-            notifyAddressChange(serviceName, addresses);
-
-            log.debug("已同步服务 {} 实例列表，共 {} 个实例", serviceName, addresses.size());
-        } catch (Exception e) {
-            log.error("同步服务 {} 失败: {}", serviceName, e.getMessage(), e);
-        }
-    }
-
-    /**
-     * 通知地址变更
-     */
-    private void notifyAddressChange(String serviceName, List<String> addresses) {
-        Set<Consumer<List<String>>> listeners = addressChangeListeners.get(serviceName);
-        if (listeners != null) {
-            for (Consumer<List<String>> listener : listeners) {
-                try {
-                    listener.accept(addresses);
-                } catch (Exception e) {
-                    log.error("通知地址变更失败: {}", e.getMessage(), e);
+                // 更新元数据缓存
+                if (!metadata.isEmpty()) {
+                    serviceMetadataCache.put(serviceName, metadata);
                 }
+
+                // 记录同步状态
+                lastSyncTimeMap.put(serviceName, System.currentTimeMillis());
+                syncSuccessMap.put(serviceName, true);
+
+                long syncTime = System.currentTimeMillis() - startTime;
+                log.info("已同步服务 {} 实例列表，共 {} 个实例，耗时 {}ms",
+                        serviceName, addresses.size(), syncTime);
+
+                return true;
+            } catch (Exception e) {
+                // 记录失败状态
+                lastSyncTimeMap.put(serviceName, System.currentTimeMillis());
+                syncSuccessMap.put(serviceName, false);
+
+                log.error("同步服务 {} 失败: {}", serviceName, e.getMessage(), e);
+                return false;
             }
         }
     }
@@ -144,12 +263,20 @@ public class ConsulServiceCenter implements ServiceCenter {
     public List<Invoker> discoverInvokers(RpcRequest request) {
         String serviceName = request.getInterfaceName();
 
+        // 无论服务是否存在，都记录这次尝试并更新时间戳
+        trackedServicesWithTimestamp.put(serviceName, System.currentTimeMillis());
+
+        // 新增：确保服务被监听，即使当前没有地址
+        ensureServiceWatched(serviceName);
+
         // 获取服务地址列表
-        List<String> addresses = serviceCache.get(serviceName);
+        List<String> addresses = addressCache.getAddresses(serviceName);
         if (addresses == null || addresses.isEmpty()) {
             // 如果缓存中没有，尝试同步
-            syncServiceFromConsul(serviceName);
-            addresses = serviceCache.get(serviceName);
+            if (syncServiceFromConsul(serviceName)) {
+                log.info("服务 {} 地址缓存为空，尝试从Consul同步", serviceName);
+                addresses = addressCache.getAddresses(serviceName);
+            }
 
             if (addresses == null || addresses.isEmpty()) {
                 log.warn("未发现服务: {}", serviceName);
@@ -157,15 +284,35 @@ public class ConsulServiceCenter implements ServiceCenter {
             }
         }
 
-        // 将地址转换为InetSocketAddress
-        List<InetSocketAddress> socketAddresses = addresses.stream().map(this::parseAddress).filter(Objects::nonNull)
-                .collect(Collectors.toList());
+        // 直接使用InvokerManager获取Invoker
+        return invokerManager.getInvokers(serviceName);
+    }
 
-        // 更新InvokerFactory中的服务地址
-        invokerFactory.updateServiceAddresses(serviceName, socketAddresses);
+    /**
+     * 确保服务被监听，即使当前没有可用地址
+     * 这是为了服务后续上线时能够自动发现
+     */
+    private void ensureServiceWatched(String serviceName) {
+        // 这个服务是否已经被订阅过了
+        if (!subscribedServices.contains(serviceName)) {
+            // 将服务添加到已订阅集合
+            subscribedServices.add(serviceName);
 
-        // 获取Invoker列表
-        return invokerFactory.getInvokers(serviceName, socketAddresses);
+            // 为服务注册地址变更监听器
+            addressCache.subscribeAddressChange(serviceName, addresses -> {
+                try {
+                    if (addresses != null && !addresses.isEmpty()) {
+                        log.info("服务 {} 地址变更通知: {} 个实例", serviceName, addresses.size());
+                        // 更新InvokerManager中的地址
+                        invokerManager.updateServiceAddresses(serviceName, addresses);
+                    }
+                } catch (Exception e) {
+                    log.error("处理服务 {} 地址变更时出错: {}", serviceName, e.getMessage(), e);
+                }
+            });
+
+            log.info("已为服务 {} 设置地址变更监听", serviceName);
+        }
     }
 
     /**
@@ -185,12 +332,16 @@ public class ConsulServiceCenter implements ServiceCenter {
     public InetSocketAddress serviceDiscovery(RpcRequest request) {
         String serviceName = request.getInterfaceName();
 
+        // 无论服务是否存在，都记录这次尝试并更新时间戳
+        trackedServicesWithTimestamp.put(serviceName, System.currentTimeMillis());
+
         // 获取服务地址列表
-        List<String> addresses = serviceCache.get(serviceName);
+        List<String> addresses = addressCache.getAddresses(serviceName);
         if (addresses == null || addresses.isEmpty()) {
             // 如果缓存中没有，尝试同步
-            syncServiceFromConsul(serviceName);
-            addresses = serviceCache.get(serviceName);
+            if (syncServiceFromConsul(serviceName)) {
+                addresses = addressCache.getAddresses(serviceName);
+            }
 
             if (addresses == null || addresses.isEmpty()) {
                 log.warn("未发现服务: {}", serviceName);
@@ -217,23 +368,48 @@ public class ConsulServiceCenter implements ServiceCenter {
             // 从方法签名提取服务名称
             String serviceName = extractServiceName(methodSignature);
 
-            // 从Consul元数据查询可重试方法
+            // 优先从元数据缓存获取
+            Map<String, String> metadata = getServiceMetadata(serviceName);
+            if (metadata != null && !metadata.isEmpty()) {
+                String retryableKey = "retryable-" + normalizeMethodSignature(methodSignature);
+                return "true".equalsIgnoreCase(metadata.getOrDefault(retryableKey, "false"));
+            }
+
+            return false;
+        } catch (Exception e) {
+            log.error("检查方法是否可重试失败: {}", methodSignature, e);
+            return false;
+        }
+    }
+
+    @Override
+    public Map<String, String> getServiceMetadata(String serviceName) {
+        // 从缓存获取
+        Map<String, String> metadata = serviceMetadataCache.get(serviceName);
+        if (metadata != null) {
+            return new HashMap<>(metadata);
+        }
+
+        // 缓存中没有，尝试从Consul获取
+        try {
             HealthClient healthClient = consulClient.healthClient();
             List<ServiceHealth> services = healthClient.getHealthyServiceInstances(serviceName).getResponse();
 
             if (!services.isEmpty()) {
                 ServiceHealth service = services.get(0);
-                Map<String, String> meta = service.getService().getMeta();
+                Map<String, String> newMetadata = service.getService().getMeta();
 
-                // 检查元数据中是否标记该方法为可重试
-                String retryableKey = "retryable-" + normalizeMethodSignature(methodSignature);
-                return "true".equalsIgnoreCase(meta.getOrDefault(retryableKey, "false"));
+                // 缓存元数据
+                if (!newMetadata.isEmpty()) {
+                    serviceMetadataCache.put(serviceName, newMetadata);
+                    return new HashMap<>(newMetadata);
+                }
             }
         } catch (Exception e) {
-            log.error("检查方法是否可重试失败: {}", methodSignature, e);
+            log.error("获取服务元数据失败: {}", serviceName, e.getMessage());
         }
 
-        return false;
+        return Collections.emptyMap();
     }
 
     /**
@@ -254,10 +430,11 @@ public class ConsulServiceCenter implements ServiceCenter {
     @Override
     public void subscribeAddressChange(String serviceName, Consumer<List<String>> listener) {
         if (serviceName != null && listener != null) {
-            // 添加监听器
-            Set<Consumer<List<String>>> listeners = addressChangeListeners.computeIfAbsent(serviceName,
-                    k -> ConcurrentHashMap.newKeySet());
-            listeners.add(listener);
+            // 无论服务是否存在，都记录这次尝试并更新时间戳
+            trackedServicesWithTimestamp.put(serviceName, System.currentTimeMillis());
+
+            // 委托给地址缓存
+            addressCache.subscribeAddressChange(serviceName, listener);
 
             // 立即同步一次服务
             syncServiceFromConsul(serviceName);
@@ -268,29 +445,65 @@ public class ConsulServiceCenter implements ServiceCenter {
     @Override
     public void unsubscribeAddressChange(String serviceName, Consumer<List<String>> listener) {
         if (serviceName != null && listener != null) {
-            Set<Consumer<List<String>>> listeners = addressChangeListeners.get(serviceName);
-            if (listeners != null) {
-                listeners.remove(listener);
-                if (listeners.isEmpty()) {
-                    addressChangeListeners.remove(serviceName);
-                }
-                log.info("已取消订阅服务 {} 的地址变更", serviceName);
-            }
+            // 委托给地址缓存
+            addressCache.unsubscribeAddressChange(serviceName, listener);
+            log.info("已取消订阅服务 {} 的地址变更", serviceName);
+        }
+    }
+
+    @Override
+    public boolean forceSync(String serviceName) {
+        if (serviceName == null || serviceName.isEmpty()) {
+            return false;
+        }
+
+        try {
+            // 无论服务是否存在，都记录这次尝试并更新时间戳
+            trackedServicesWithTimestamp.put(serviceName, System.currentTimeMillis());
+            return syncServiceFromConsul(serviceName);
+        } catch (Exception e) {
+            log.error("强制同步服务 {} 失败: {}", serviceName, e.getMessage(), e);
+            return false;
+        }
+    }
+
+    @Override
+    public boolean isServiceHealthy(String serviceName) {
+        if (serviceName == null || serviceName.isEmpty()) {
+            return false;
+        }
+
+        try {
+            HealthClient healthClient = consulClient.healthClient();
+            List<ServiceHealth> services = healthClient.getHealthyServiceInstances(serviceName).getResponse();
+            return !services.isEmpty();
+        } catch (Exception e) {
+            log.error("检查服务 {} 健康状态失败: {}", serviceName, e.getMessage());
+            return false;
         }
     }
 
     @Override
     @PreDestroy
     public void close() {
+        // 关闭执行器
+        if (syncExecutor != null) {
+            syncExecutor.shutdownNow();
+        }
+
         // 关闭调度器
         if (scheduler != null) {
             scheduler.shutdownNow();
         }
 
-        // 清除缓存和监听器
-        serviceCache.clear();
-        addressChangeListeners.clear();
+        // 清除缓存
         retryableMethodCache.clear();
+        serviceMetadataCache.clear();
+        syncLocks.clear();
+        lastSyncTimeMap.clear();
+        syncSuccessMap.clear();
+        trackedServicesWithTimestamp.clear();
+        serviceFailureCount.clear();
 
         log.info("ConsulServiceCenter已关闭");
     }

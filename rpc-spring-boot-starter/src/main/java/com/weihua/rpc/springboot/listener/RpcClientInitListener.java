@@ -1,7 +1,7 @@
 /*
  * @Author: weihua hu
  * @Date: 2025-04-10 02:37:09
- * @LastEditTime: 2025-04-10 02:37:10
+ * @LastEditTime: 2025-04-12 14:04:08
  * @LastEditors: weihua hu
  * @Description: 
  */
@@ -10,6 +10,9 @@ package com.weihua.rpc.springboot.listener;
 import com.weihua.rpc.core.client.circuit.CircuitBreakerProvider;
 import com.weihua.rpc.core.client.netty.NettyRpcClient;
 import com.weihua.rpc.core.client.registry.ServiceCenter;
+import com.weihua.rpc.core.condition.ConditionalOnClientMode;
+import com.weihua.rpc.core.condition.ConditionalOnServerMode;
+
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -20,7 +23,9 @@ import org.springframework.context.event.ContextRefreshedEvent;
  * RPC客户端初始化监听器
  */
 @Slf4j
-@ConditionalOnProperty(name = "rpc.mode", havingValue = "client", matchIfMissing = false)
+// @ConditionalOnProperty(name = "rpc.mode", havingValue = "client",
+// matchIfMissing = false)
+@ConditionalOnClientMode
 public class RpcClientInitListener implements ApplicationListener<ContextRefreshedEvent> {
 
     @Autowired

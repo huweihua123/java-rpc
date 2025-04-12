@@ -22,7 +22,6 @@ import java.util.concurrent.TimeUnit;
 @Slf4j
 public class NettyServerHandler extends SimpleChannelInboundHandler<RpcRequest> {
 
-    private final ServiceProvider serviceProvider;
     private static final ExecutorService SERVICE_EXECUTOR;
 
     static {
@@ -48,6 +47,8 @@ public class NettyServerHandler extends SimpleChannelInboundHandler<RpcRequest> 
         log.info("业务处理线程池已创建: 核心大小={}, 最大大小={}, 队列大小={}",
                 coreSize, maxSize, queueSize);
     }
+
+    private final ServiceProvider serviceProvider;
 
     public NettyServerHandler(ServiceProvider serviceProvider) {
         this.serviceProvider = serviceProvider;

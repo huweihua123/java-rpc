@@ -1,12 +1,13 @@
 /*
  * @Author: weihua hu
  * @Date: 2025-04-10 02:20:25
- * @LastEditTime: 2025-04-10 18:36:17
+ * @LastEditTime: 2025-04-12 14:17:16
  * @LastEditors: weihua hu
  * @Description: 
  */
 package com.weihua.rpc.core.server.registry.impl;
 
+import com.weihua.rpc.core.condition.ConditionalOnServerMode;
 import com.weihua.rpc.core.server.registry.ServiceRegistry;
 import lombok.extern.slf4j.Slf4j;
 
@@ -24,7 +25,10 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 @Slf4j
 @Component("localServiceRegistry")
-@ConditionalOnExpression("'${rpc.mode:server}'.equals('server') && '${rpc.registry.type:local}'.equals('local')")
+// @ConditionalOnExpression("'${rpc.mode:server}'.equals('server') &&
+// '${rpc.registry.type:local}'.equals('local')")
+@ConditionalOnServerMode
+@ConditionalOnProperty(name = "rpc.registry.type", havingValue = "local", matchIfMissing = false)
 public class LocalServiceRegistry implements ServiceRegistry {
 
     // 服务注册表，存储服务名称到地址的映射

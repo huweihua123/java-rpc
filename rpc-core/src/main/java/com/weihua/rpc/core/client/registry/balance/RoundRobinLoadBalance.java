@@ -1,7 +1,7 @@
 /*
  * @Author: weihua hu
  * @Date: 2025-04-10 02:02:09
- * @LastEditTime: 2025-04-10 18:51:24
+ * @LastEditTime: 2025-04-12 14:07:36
  * @LastEditors: weihua hu
  * @Description: 
  */
@@ -9,6 +9,7 @@ package com.weihua.rpc.core.client.registry.balance;
 
 import com.weihua.rpc.common.model.RpcRequest;
 import com.weihua.rpc.core.client.invoker.Invoker;
+import com.weihua.rpc.core.condition.ConditionalOnClientMode;
 
 import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -23,9 +24,10 @@ import java.util.concurrent.atomic.AtomicInteger;
  * 轮询负载均衡实现
  */
 @Component("roundRobinLoadBalance")
-@ConditionalOnExpression("'${rpc.mode:server}'.equals('client') && '${rpc.loadBalance.type:random}'.equals('roundrobin')")
-// @ConditionalOnExpression("#{environment['rpc.mode'] == 'client' &&
-// environment['rpc.loadBalance.type'] == 'random'}")
+// @ConditionalOnExpression("'${rpc.mode:server}'.equals('client') &&
+// '${rpc.loadBalance.type:random}'.equals('roundrobin')")
+@ConditionalOnClientMode
+@ConditionalOnProperty(name = "rpc.loadBalance.type", havingValue = "roundrobin", matchIfMissing = false)
 public class RoundRobinLoadBalance extends AbstractLoadBalance {
 
     // 服务计数器映射

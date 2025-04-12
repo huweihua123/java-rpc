@@ -21,6 +21,7 @@
         <module>rpc-example-common</module>
         <module>rpc-example-provider</module>
         <module>rpc-example-consumer</module>
+        <module>rpc-example-hybrid</module>
     </modules>
 
     <properties>

@@ -1,4 +1,0 @@
-com.weihua.rpc.core.client.registry.balance.RandomLoadBalance
-com.weihua.rpc.core.client.registry.balance.RoundRobinLoadBalance
-com.weihua.rpc.core.client.registry.balance.ConsistentHashLoadBalance
-com.weihua.rpc.core.client.registry.balance.LeastActiveLoadBalance

@@ -1,7 +1,7 @@
 /*
  * @Author: weihua hu
  * @Date: 2025-04-10 02:02:53
- * @LastEditTime: 2025-04-10 18:50:51
+ * @LastEditTime: 2025-04-12 14:09:10
  * @LastEditors: weihua hu
  * @Description: 
  */
@@ -9,8 +9,10 @@ package com.weihua.rpc.core.client.registry.balance;
 
 import com.weihua.rpc.common.model.RpcRequest;
 import com.weihua.rpc.core.client.invoker.Invoker;
+import com.weihua.rpc.core.condition.ConditionalOnClientMode;
 
 import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
@@ -21,9 +23,9 @@ import java.util.concurrent.ThreadLocalRandom;
  * 最小活跃数负载均衡实现
  */
 @Component("leastActiveLoadBalance")
-@ConditionalOnExpression("'${rpc.mode:server}'.equals('client') &&'${rpc.loadBalance.type:random}'.equals('leastactive')")
-// @ConditionalOnExpression("#{environment['rpc.mode'] == 'client' &&
-// environment['rpc.loadBalance.type'] == 'leastactive'}")
+// @ConditionalOnExpression("'${rpc.mode:server}'.equals('client') &&'${rpc.loadBalance.type:random}'.equals('leastactive')")
+@ConditionalOnClientMode
+@ConditionalOnProperty(name = "rpc.loadBalance.type", havingValue = "leastactive", matchIfMissing = false)
 public class LeastActiveLoadBalance extends AbstractLoadBalance {
 
     @Override

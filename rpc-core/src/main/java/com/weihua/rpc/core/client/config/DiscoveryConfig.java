@@ -1,7 +1,7 @@
 /*
  * @Author: weihua hu
  * @Date: 2025-04-10 02:01:21
- * @LastEditTime: 2025-04-10 16:31:17
+ * @LastEditTime: 2025-04-11 19:59:50
  * @LastEditors: weihua hu
  * @Description: 
  */
@@ -43,7 +43,7 @@ public class DiscoveryConfig {
     /**
      * 请求超时（毫秒）
      */
-    @Value("${rpc.discovery.timeout:5000}")
+    @Value("${rpc.discovery.timeout:15000}")
     private int timeout;
 
     /**
@@ -58,10 +58,32 @@ public class DiscoveryConfig {
     @Value("${rpc.discovery.sync.period:30}")
     private int syncPeriod;
 
+    /**
+     * 是否启用服务健康检查
+     */
+    @Value("${rpc.discovery.healthcheck.enabled:true}")
+    private boolean healthCheckEnabled;
+
+    /**
+     * 健康检查间隔（秒）
+     */
+    @Value("${rpc.discovery.healthcheck.interval:15}")
+    private int healthCheckInterval;
+
+    /**
+     * 是否缓存服务元数据
+     */
+    @Value("${rpc.discovery.metadata.cache:true}")
+    private boolean metadataCache;
+
+    /**
+     * 元数据缓存过期时间（秒）
+     */
+    @Value("${rpc.discovery.metadata.expire:300}")
+    private int metadataExpireSeconds;
+
     @PostConstruct
     public void init() {
-//        System.out.println("注册中心配置: 类型=" + type + ", 地址=" + address +
-//                ", 连接超时=" + connectTimeout + "ms, 请求超时=" + timeout +
-//                "ms, 重试次数=" + retryTimes + ", 同步周期=" + syncPeriod + "s");
+        // 初始化逻辑，如需记录配置信息可在此添加
     }
 }

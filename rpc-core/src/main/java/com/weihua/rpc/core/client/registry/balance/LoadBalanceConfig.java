@@ -1,13 +1,24 @@
+/*
+ * @Author: weihua hu
+ * @Date: 2025-04-10 02:03:01
+ * @LastEditTime: 2025-04-12 14:08:51
+ * @LastEditors: weihua hu
+ * @Description: 
+ */
 package com.weihua.rpc.core.client.registry.balance;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
 
+import com.weihua.rpc.core.condition.ConditionalOnClientMode;
+
 @Configuration
-@ConditionalOnExpression("#{environment['rpc.mode'] == 'client'}")
+@ConditionalOnClientMode
+// @ConditionalOnExpression("#{environment['rpc.mode'] == 'client'}")
 public class LoadBalanceConfig {
 
     @Value("${rpc.load-balance.type:random}")

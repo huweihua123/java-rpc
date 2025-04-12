@@ -1,12 +1,13 @@
 /*
  * @Author: weihua hu
  * @Date: 2025-04-10 02:33:00
- * @LastEditTime: 2025-04-10 02:33:02
+ * @LastEditTime: 2025-04-12 14:04:43
  * @LastEditors: weihua hu
  * @Description:
  */
 package com.weihua.rpc.spring.config;
 
+import com.weihua.rpc.core.condition.ConditionalOnServerMode;
 import com.weihua.rpc.core.server.RpcServer;
 import com.weihua.rpc.core.server.config.ServerConfig;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -28,7 +29,9 @@ import javax.annotation.PreDestroy;
         "com.weihua.rpc.core.protocol",
         "com.weihua.rpc.core.serialize"
 })
-@ConditionalOnProperty(name = "rpc.mode", havingValue = "server", matchIfMissing = false)
+// @ConditionalOnProperty(name = "rpc.mode", havingValue = "server",
+// matchIfMissing = false)
+@ConditionalOnServerMode
 public class RpcServerConfiguration {
 
     @Autowired

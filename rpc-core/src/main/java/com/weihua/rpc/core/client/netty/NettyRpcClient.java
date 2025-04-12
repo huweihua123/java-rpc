@@ -7,6 +7,7 @@ import com.weihua.rpc.core.client.invoker.Invoker;
 import com.weihua.rpc.core.client.netty.handler.NettyClientInitializer;
 import com.weihua.rpc.core.client.registry.ServiceCenter;
 import com.weihua.rpc.core.client.registry.balance.LoadBalance;
+import com.weihua.rpc.core.condition.ConditionalOnClientMode;
 import com.weihua.rpc.core.protocol.RpcFutureManager;
 import io.netty.bootstrap.Bootstrap;
 import io.netty.channel.EventLoopGroup;
@@ -29,7 +30,9 @@ import java.util.concurrent.TimeUnit;
  */
 @Slf4j
 @Component
-@ConditionalOnProperty(name = "rpc.mode", havingValue = "client", matchIfMissing = false)
+// @ConditionalOnProperty(name = "rpc.mode", havingValue = "client",
+// matchIfMissing = false)
+@ConditionalOnClientMode
 public class NettyRpcClient {
 
     @Autowired

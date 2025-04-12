@@ -93,7 +93,6 @@ public class RpcRequest implements Serializable {
         return RpcRequest.builder()
                 .requestType(RequestType.HEARTBEAT) // 修改: type -> requestType
                 .requestId(heartbeatId)
-                // .timestamp(System.currentTimeMillis()) // 删除: RpcRequest没有timestamp字段
                 .build();
     }
 

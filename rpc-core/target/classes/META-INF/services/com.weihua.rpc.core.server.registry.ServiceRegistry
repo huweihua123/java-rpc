@@ -1,3 +1,0 @@
-com.weihua.rpc.core.server.registry.impl.ConsulServiceRegistry
-com.weihua.rpc.core.server.registry.impl.ZkServiceRegistry
-com.weihua.rpc.core.server.registry.impl.LocalServiceRegistry

@@ -1,0 +1,61 @@
+server:
+  port: 8083
+
+spring:
+  application:
+    name: rpc-example-hybrid
+  profiles:
+    include:
+      - rpc-server
+      - rpc-client
+
+# RPC 服务端和客户端共享配置
+rpc:
+  registry:
+    type: consul
+    address: 127.0.0.1:8500
+  loadBalance:
+    type: random
+  ratelimit:
+    enabled: true
+    default:
+      qps: 100
+
+---
+spring:
+  profiles: rpc-server
+
+rpc:
+  mode: server
+  server:
+    port: 9002
+    host: 127.0.0.1
+    io-threads: 4
+    worker-threads: 10
+
+---
+spring:
+  profiles: rpc-client
+
+rpc:
+  mode: client
+  client:
+    timeout: 3000
+    connect-timeout: 5000
+    request-timeout: 5
+    connection:
+      mode: EAGER
+    retry:
+      enable: true
+      max: 3
+      interval: 1000
+      only-idempotent: true
+    service:
+      version: 1.0.0
+      group: default
+
+# 日志配置
+logging:
+  level:
+    com.weihua.rpc: info           # 框架日志级别
+    root: warn

@@ -3,7 +3,7 @@
  * @Date: 2025-04-10 01:54:55
  * @LastEditTime: 2025-04-10 01:54:56
  * @LastEditors: weihua hu
- * @Description: 
+ * @Description:
  */
 package com.weihua.rpc.core.client.netty.handler;
 
@@ -22,8 +22,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 @Slf4j
 public class HeartBeatHandler extends ChannelInboundHandlerAdapter {
 
-    private final AtomicInteger heartbeatFailures = new AtomicInteger(0);
     private static final int MAX_FAILURES = 3; // 最大连续失败次数
+    private final AtomicInteger heartbeatFailures = new AtomicInteger(0);
 
     @Override
     public void userEventTriggered(ChannelHandlerContext ctx, Object evt) throws Exception {
@@ -56,6 +56,7 @@ public class HeartBeatHandler extends ChannelInboundHandlerAdapter {
     private RpcRequest createHeartbeatRequest() {
         return RpcRequest.builder()
                 .requestId("heartbeat-" + System.currentTimeMillis())
+                .requestType(RpcRequest.RequestType.HEARTBEAT)
                 .build();
     }
 
