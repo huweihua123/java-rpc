@@ -1,7 +1,7 @@
 /*
  * @Author: weihua hu
  * @Date: 2025-04-10 01:54:21
- * @LastEditTime: 2025-04-10 01:54:22
+ * @LastEditTime: 2025-04-14 16:35:23
  * @LastEditors: weihua hu
  * @Description: 
  */
@@ -45,7 +45,7 @@ public class NettyClientInitializer extends ChannelInitializer<SocketChannel> {
                     TimeUnit.SECONDS));
 
             // 3. 添加编解码器
-            Serializer serializer = SerializerFactory.getSerializer("json");
+            Serializer serializer = SerializerFactory.getDefaultSerializer();
             pipeline.addLast("encoder", new RpcEncoder(serializer));
             pipeline.addLast("decoder", new RpcDecoder(serializer));
 

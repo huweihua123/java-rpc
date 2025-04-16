@@ -6,7 +6,7 @@ import com.weihua.rpc.core.client.circuit.CircuitBreaker;
 import com.weihua.rpc.core.client.circuit.CircuitBreakerProvider;
 import com.weihua.rpc.core.client.config.ClientConfig;
 import com.weihua.rpc.core.client.netty.NettyRpcClient;
-import com.weihua.rpc.core.client.registry.ServiceCenter;
+import com.weihua.rpc.core.client.registry.ServiceDiscovery;
 import com.weihua.rpc.core.condition.ConditionalOnClientMode;
 
 import lombok.extern.slf4j.Slf4j;
@@ -36,7 +36,7 @@ public class ClientProxyFactory {
     private NettyRpcClient rpcClient;
 
     @Autowired
-    private ServiceCenter serviceCenter;
+    private ServiceDiscovery serviceCenter;
 
     @Autowired
     private CircuitBreakerProvider circuitBreakerProvider;

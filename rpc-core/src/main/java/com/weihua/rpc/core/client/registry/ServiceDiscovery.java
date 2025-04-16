@@ -1,16 +1,16 @@
 /*
  * @Author: weihua hu
  * @Date: 2025-04-10 02:00:05
- * @LastEditTime: 2025-04-10 23:45:04
+ * @LastEditTime: 2025-04-15 02:00:21
  * @LastEditors: weihua hu
  * @Description:
  */
 package com.weihua.rpc.core.client.registry;
 
+import com.weihua.rpc.common.extension.SPI;
 import com.weihua.rpc.common.model.RpcRequest;
 import com.weihua.rpc.core.client.invoker.Invoker;
 
-import java.net.InetSocketAddress;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
@@ -18,7 +18,8 @@ import java.util.function.Consumer;
 /**
  * 服务发现中心接口
  */
-public interface ServiceCenter {
+@SPI("consul")
+public interface ServiceDiscovery {
 
     /**
      * 发现指定服务的所有可用Invoker
@@ -27,16 +28,6 @@ public interface ServiceCenter {
      * @return 可用的Invoker列表
      */
     List<Invoker> discoverInvokers(RpcRequest request);
-
-    /**
-     * 发现服务地址 (向后兼容方法)
-     *
-     * @param request RPC请求
-     * @return 服务地址
-     * @deprecated 使用 {@link #discoverInvokers} 代替
-     */
-    @Deprecated
-    InetSocketAddress serviceDiscovery(RpcRequest request);
 
     /**
      * 检查方法是否可重试

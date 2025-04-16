@@ -1,23 +1,15 @@
 package com.weihua.rpc.core.server.registry.impl;
 
-import com.weihua.rpc.core.condition.ConditionalOnServerMode;
 import com.weihua.rpc.core.server.annotation.MethodSignature;
 import com.weihua.rpc.core.server.annotation.Retryable;
 import com.weihua.rpc.core.server.annotation.RpcService;
-import com.weihua.rpc.core.server.config.RegistryConfig;
-import com.weihua.rpc.core.server.registry.ServiceRegistry;
+import com.weihua.rpc.core.server.registry.AbstractServiceRegistry;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.ExponentialBackoffRetry;
 import org.apache.zookeeper.CreateMode;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.stereotype.Component;
 
-import javax.annotation.PostConstruct;
-import javax.annotation.PreDestroy;
 import java.lang.reflect.Method;
 import java.net.InetSocketAddress;
 import java.util.ArrayList;
@@ -29,20 +21,12 @@ import java.util.Map;
  * ZooKeeper服务注册实现
  */
 @Slf4j
-@Component("zkServiceRegistry")
-// @ConditionalOnExpression("'${rpc.mode:server}'.equals('server') &&
-// '${rpc.registry.type:local}'.equals('zookeeper')")
-@ConditionalOnServerMode
-@ConditionalOnProperty(name = "rpc.registry.type", havingValue = "zookeeper", matchIfMissing = false)
-public class ZkServiceRegistry implements ServiceRegistry {
-
-    @Autowired
-    private RegistryConfig registryConfig;
+public class ZkServiceRegistry extends AbstractServiceRegistry {
 
     private CuratorFramework client;
     private final Map<String, String> registeredServices = new HashMap<>();
 
-    @PostConstruct
+    @Override
     public void init() {
         initZkClient();
     }
@@ -123,7 +107,7 @@ public class ZkServiceRegistry implements ServiceRegistry {
         for (String methodSignature : retryableMethods) {
             try {
                 // 创建方法标识节点 - 使用统一的方法签名格式转换
-                String methodPath = servicePath + "/methods/" + MethodSignature.toZkFormat(methodSignature);
+                String methodPath = servicePath + "/methods/" + MethodSignature.toConsulFormat(methodSignature);
                 if (client.checkExists().forPath(methodPath) == null) {
                     client.create().creatingParentsIfNeeded().forPath(methodPath, "true".getBytes());
                     log.info("注册可重试方法: {}", methodPath);
@@ -201,7 +185,6 @@ public class ZkServiceRegistry implements ServiceRegistry {
     }
 
     @Override
-    @PreDestroy
     public void shutdown() {
         if (client != null) {
             // 删除注册的临时节点
@@ -219,29 +202,6 @@ public class ZkServiceRegistry implements ServiceRegistry {
             // 关闭客户端
             client.close();
             log.info("ZooKeeper客户端已关闭");
-        }
-    }
-
-    /**
-     * 刷新配置
-     */
-    public void refreshConfig() {
-        log.info("刷新ZK服务注册配置");
-
-        try {
-            // 关闭旧客户端
-            if (client != null) {
-                client.close();
-            }
-
-            // 初始化新客户端
-            initZkClient();
-
-            // 重新注册服务
-            reregisterServices();
-
-        } catch (Exception e) {
-            log.error("刷新配置失败", e);
         }
     }
 

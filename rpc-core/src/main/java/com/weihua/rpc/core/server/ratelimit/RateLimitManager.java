@@ -1,6 +1,5 @@
 package com.weihua.rpc.core.server.ratelimit;
 
-import com.weihua.rpc.core.condition.ConditionalOnServerMode;
 import com.weihua.rpc.core.server.annotation.MethodSignature;
 import com.weihua.rpc.core.server.annotation.RateLimit;
 import lombok.extern.slf4j.Slf4j;
@@ -17,7 +16,6 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 @Slf4j
 @Component
-@ConditionalOnServerMode
 public class RateLimitManager {
 
     @Autowired

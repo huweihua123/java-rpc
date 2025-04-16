@@ -1,7 +1,7 @@
 /*
  * @Author: weihua hu
  * @Date: 2025-04-10 01:51:50
- * @LastEditTime: 2025-04-10 01:51:52
+ * @LastEditTime: 2025-04-13 01:26:51
  * @LastEditors: weihua hu
  * @Description: 
  */
@@ -68,6 +68,13 @@ public interface Invoker {
      * @return 成功率(0-1)
      */
     double getSuccessRate();
+    
+    /**
+     * 获取总请求数量
+     * 
+     * @return 请求总数
+     */
+    long getRequestCount();
 
     /**
      * 销毁调用者，释放资源

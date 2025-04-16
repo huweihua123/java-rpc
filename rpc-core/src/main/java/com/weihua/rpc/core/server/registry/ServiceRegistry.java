@@ -7,7 +7,8 @@
  */
 package com.weihua.rpc.core.server.registry;
 
-import com.weihua.rpc.common.extension.annotation.SPI;
+
+import com.weihua.rpc.common.extension.SPI;
 
 import java.net.InetSocketAddress;
 

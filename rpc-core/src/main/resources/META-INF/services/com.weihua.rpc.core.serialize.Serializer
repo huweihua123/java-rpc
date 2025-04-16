@@ -1,0 +1,11 @@
+# JSON序列化器
+json=com.weihua.rpc.core.serialize.impl.JsonSerializer
+
+# Protobuf序列化器
+protobuf=com.weihua.rpc.core.serialize.impl.ProtobufSerializer
+
+# Kryo序列化器
+kryo=com.weihua.rpc.core.serialize.impl.KryoSerializer
+
+# Hessian序列化器
+hessian=com.weihua.rpc.core.serialize.impl.HessianSerializer

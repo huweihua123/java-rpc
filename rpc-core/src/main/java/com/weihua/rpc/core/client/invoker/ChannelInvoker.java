@@ -43,6 +43,11 @@ public class ChannelInvoker implements Invoker {
     }
 
     @Override
+    public long getRequestCount() {
+        return totalCalls.get();
+    }
+
+    @Override
     public CompletableFuture<RpcResponse> invoke(RpcRequest request) {
         // 创建响应Future
         CompletableFuture<RpcResponse> responseFuture = new CompletableFuture<>();

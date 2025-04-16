@@ -1,14 +1,18 @@
 /*
  * @Author: weihua hu
  * @Date: 2025-04-10 02:35:53
- * @LastEditTime: 2025-04-10 02:35:55
+ * @LastEditTime: 2025-04-15 02:32:52
  * @LastEditors: weihua hu
  * @Description: 
  */
 package com.weihua.rpc.springboot.properties;
 
+import com.weihua.rpc.core.client.pool.InvokerManager.ConnectionMode;
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
+
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * RPC客户端配置属性
@@ -28,7 +32,22 @@ public class RpcClientProperties {
     private int connectTimeout = 5000;
 
     /**
-     * 重试次数
+     * 请求处理超时时间（毫秒）
+     */
+    private int requestTimeout = 10000;
+    
+    /**
+     * 每个地址的最大连接数（目前仅支持1）
+     */
+    private int maxConnectionsPerAddress = 1;
+    
+    /**
+     * 每个地址的初始连接数（目前仅支持0或1）
+     */
+    private int initConnectionsPerAddress = 1;
+
+    /**
+     * 最大重试次数
      */
     private int retries = 2;
 
@@ -41,6 +60,50 @@ public class RpcClientProperties {
      * 重试间隔（毫秒）
      */
     private int retryInterval = 1000;
+    
+    /**
+     * 是否只对幂等请求进行重试
+     */
+    private boolean retryOnlyIdempotent = true;
+    
+    /**
+     * 指数退避乘数
+     * 每次重试后等待时间的增长倍数
+     */
+    private double backoffMultiplier = 2.0;
+    
+    /**
+     * 最大退避时间（毫秒）
+     */
+    private int maxBackoffTime = 30000;
+    
+    /**
+     * 是否添加随机抖动
+     * 防止多个客户端同时重试导致的"惊群效应"
+     */
+    private boolean addJitter = true;
+    
+    /**
+     * 最小重试间隔（毫秒）
+     */
+    private int minRetryInterval = 500;
+    
+    /**
+     * 连接模式
+     * LAZY: 懒加载，首次使用时创建连接
+     * EAGER: 预加载，发现地址后立即创建连接
+     */
+    private ConnectionMode connectionMode = ConnectionMode.LAZY;
+    
+    /**
+     * 心跳间隔（秒）
+     */
+    private int heartbeatInterval = 30;
+    
+    /**
+     * 心跳超时（秒）
+     */
+    private int heartbeatTimeout = 5;
 
     /**
      * 负载均衡策略：random, roundrobin, leastactive, consistenthash
@@ -66,35 +129,35 @@ public class RpcClientProperties {
      * 是否启用熔断器
      */
     private boolean circuitBreakerEnable = true;
-
+    
     /**
-     * 熔断器相关配置
+     * 接口特定配置
      */
-    private CircuitBreaker circuitBreaker = new CircuitBreaker();
+    private Map<String, InterfaceConfig> interfaces = new HashMap<>();
 
     /**
-     * 熔断器配置
+     * 接口特定配置
      */
     @Data
-    public static class CircuitBreaker {
+    public static class InterfaceConfig {
         /**
-         * 连续失败阈值
+         * 超时时间（毫秒）
          */
-        private int failureThreshold = 5;
-
+        private Integer timeout;
+        
         /**
-         * 错误率阈值（百分比）
+         * 最大重试次数
          */
-        private int errorRateThreshold = 50;
-
+        private Integer retries;
+        
         /**
-         * 重置超时（毫秒）
+         * 负载均衡策略
          */
-        private long resetTimeout = 30000;
-
+        private String loadBalance;
+        
         /**
-         * 半开状态最大请求数
+         * 是否启用熔断器
          */
-        private int halfOpenMaxRequests = 10;
+        private Boolean circuitBreakerEnable;
     }
 }

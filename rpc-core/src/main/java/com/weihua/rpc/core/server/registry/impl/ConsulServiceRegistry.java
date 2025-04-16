@@ -4,21 +4,13 @@ import com.orbitz.consul.AgentClient;
 import com.orbitz.consul.Consul;
 import com.orbitz.consul.model.agent.ImmutableRegistration;
 import com.orbitz.consul.model.agent.Registration;
-import com.weihua.rpc.core.condition.ConditionalOnServerMode;
 import com.weihua.rpc.core.server.annotation.MethodSignature;
 import com.weihua.rpc.core.server.annotation.RateLimit;
 import com.weihua.rpc.core.server.annotation.Retryable;
 import com.weihua.rpc.core.server.annotation.RpcService;
-import com.weihua.rpc.core.server.config.RegistryConfig;
-import com.weihua.rpc.core.server.registry.ServiceRegistry;
+import com.weihua.rpc.core.server.registry.AbstractServiceRegistry;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.stereotype.Component;
 
-import javax.annotation.PostConstruct;
-import javax.annotation.PreDestroy;
 import java.lang.reflect.Method;
 import java.net.InetSocketAddress;
 import java.util.ArrayList;
@@ -30,20 +22,12 @@ import java.util.Map;
  * Consul服务注册实现
  */
 @Slf4j
-@Component("consulServiceRegistry")
-// @ConditionalOnExpression("'${rpc.mode:server}'.equals('server') &&
-// '${rpc.registry.type:local}'.equals('consul')")
-@ConditionalOnServerMode
-@ConditionalOnProperty(name = "rpc.registry.type", havingValue = "consul", matchIfMissing = false)
-public class ConsulServiceRegistry implements ServiceRegistry {
-
-    @Autowired
-    private RegistryConfig registryConfig;
+public class ConsulServiceRegistry extends AbstractServiceRegistry {
 
     private Consul consulClient;
     private final Map<String, String> registeredServices = new HashMap<>();
 
-    @PostConstruct
+    @Override
     public void init() {
         initConsulClient();
     }
@@ -58,14 +42,8 @@ public class ConsulServiceRegistry implements ServiceRegistry {
             String host = hostAndPort[0];
             int port = Integer.parseInt(hostAndPort[1]);
 
-            // consulClient = Consul.builder()
-            // .withHostAndPort(host, port)
-            // .withConnectTimeoutMillis(registryConfig.getConnectTimeout())
-            // .withReadTimeoutMillis(registryConfig.getTimeout())
-            // .build();
-
             this.consulClient = Consul.builder()
-                    .withUrl(String.format("http://%s:%d", host, port)) // 改用URL格式
+                    .withUrl(String.format("http://%s:%d", host, port))
                     .withConnectTimeoutMillis(registryConfig.getConnectTimeout())
                     .withReadTimeoutMillis(registryConfig.getTimeout())
                     .build();
@@ -92,29 +70,19 @@ public class ConsulServiceRegistry implements ServiceRegistry {
             // 获取可重试方法
             List<String> retryableMethods = getRetryableMethod(clazz);
 
-            // 获取限流配置
-            // Map<String, Integer> rateLimitMethods = getRateLimitMethods(clazz);
-
             // 准备元数据
             Map<String, String> meta = new HashMap<>();
             meta.put("version", "1.0.0"); // 版本信息
             meta.put("interface", serviceName); // 接口名称
             meta.put("containerized", "true"); // 标记为容器化服务
             log.info("注册可重试方法: {}", retryableMethods);
-//            log.info("注册限流方法: {}", rateLimitMethods);
 
             // 添加可重试方法信息到元数据
             for (String method : retryableMethods) {
                 log.info("注册可重试方法: {}", method);
-                String normalizedMethod = MethodSignature.toConsulFormat(method);
+                String normalizedMethod = MethodSignature.normalizeMethodSignature(method);
                 meta.put("retryable-" + normalizedMethod, "true");
             }
-
-            // // 添加限流方法信息到元数据
-            // for (Map.Entry<String, Integer> entry : rateLimitMethods.entrySet()) {
-            // String normalizedMethod = MethodSignature.toConsulFormat(entry.getKey());
-            // meta.put("ratelimit-" + normalizedMethod, entry.getValue().toString());
-            // }
 
             // 创建TCP健康检查 - 使用配置的参数
             Registration.RegCheck check = Registration.RegCheck.tcp(
@@ -200,8 +168,6 @@ public class ConsulServiceRegistry implements ServiceRegistry {
                 retryableMethodSignatures.add(methodSignature);
                 log.info("标记可重试方法(@Retryable): {}, 最大重试次数: {}",
                         methodSignature, retryableAnnotation.maxRetries());
-                // 留空白行以便检查日志
-
             } else {
                 // 向后兼容: 检查方法上的旧RpcService注解
                 RpcService methodRpcService = method.getAnnotation(RpcService.class);
@@ -263,7 +229,6 @@ public class ConsulServiceRegistry implements ServiceRegistry {
     }
 
     @Override
-    @PreDestroy
     public void shutdown() {
         if (consulClient != null) {
             AgentClient agentClient = consulClient.agentClient();
@@ -280,22 +245,6 @@ public class ConsulServiceRegistry implements ServiceRegistry {
 
             log.info("Consul客户端已关闭");
         }
-    }
-
-    /**
-     * 刷新配置
-     */
-    public void refreshConfig() {
-        log.info("刷新Consul服务注册配置");
-
-        // 关闭旧Consul客户端和注销所有服务
-        shutdown();
-
-        // 重新初始化
-        initConsulClient();
-
-        // 重新注册服务
-        reregisterServices();
     }
 
     /**

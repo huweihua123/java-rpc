@@ -87,7 +87,6 @@ public class OrderServiceImpl implements OrderService {
 
     @Override
     @RateLimit(qps = 20000) // 查询接口QPS中等
-    @Retryable(description = "查询操作，无副作用")
     public List<Order> getOrdersByUserId(Long userId) {
         log.info("获取用户订单: userId={}", userId);
         return orderMap.values().stream()

@@ -1,7 +1,7 @@
 /*
  * @Author: weihua hu
  * @Date: 2025-04-10 01:32:34
- * @LastEditTime: 2025-04-12 20:46:21
+ * @LastEditTime: 2025-04-15 18:54:02
  * @LastEditors: weihua hu
  * @Description: 
  */
@@ -15,6 +15,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeansException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.config.BeanPostProcessor;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.core.annotation.AnnotationUtils;
 
 import java.lang.annotation.Annotation;
@@ -27,10 +28,10 @@ import java.util.Map;
  * 处理带有@RpcService注解的Bean，将其注册到服务提供者
  */
 @Slf4j
-// @Component
 public class RpcServiceBeanPostProcessor implements BeanPostProcessor {
 
     @Autowired
+    @Lazy
     private ServiceProvider serviceProvider;
 
     // 缓存处理过的服务接口注解

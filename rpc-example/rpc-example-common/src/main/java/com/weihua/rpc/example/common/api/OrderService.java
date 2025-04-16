@@ -34,6 +34,7 @@ public interface OrderService {
      * @param userId 用户ID
      * @return 订单列表
      */
+    @Retryable(description = "查询操作，无副作用")
     List<Order> getOrdersByUserId(Long userId);
 
     /**

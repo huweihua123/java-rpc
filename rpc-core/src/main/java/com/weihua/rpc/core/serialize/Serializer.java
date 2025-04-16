@@ -1,17 +1,19 @@
 /*
  * @Author: weihua hu
  * @Date: 2025-04-10 02:08:20
- * @LastEditTime: 2025-04-10 02:08:21
+ * @LastEditTime: 2025-04-13 19:03:10
  * @LastEditors: weihua hu
  * @Description: 
  */
 package com.weihua.rpc.core.serialize;
 
 import com.weihua.rpc.common.exception.SerializeException;
+import com.weihua.rpc.common.extension.SPI;
 
 /**
  * 序列化接口，定义序列化和反序列化方法
  */
+@SPI("json")
 public interface Serializer {
 
     /**

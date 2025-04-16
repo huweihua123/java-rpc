@@ -1,14 +1,9 @@
-package com.weihua.rpc.core.client.registry.balance;
+package com.weihua.rpc.core.client.registry.balance.impl;
 
 import com.weihua.rpc.common.model.RpcRequest;
 import com.weihua.rpc.core.client.invoker.Invoker;
-import com.weihua.rpc.core.condition.ConditionalOnClientMode;
 
 import lombok.extern.slf4j.Slf4j;
-
-import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.stereotype.Component;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -20,11 +15,6 @@ import java.util.concurrent.ConcurrentHashMap;
  * 一致性哈希负载均衡实现
  */
 @Slf4j
-@Component("consistentHashLoadBalance")
-// @ConditionalOnExpression("'${rpc.mode:server}'.equals('client')
-// &&'${rpc.loadBalance.type:random}'.equals('consistenthash')")
-@ConditionalOnClientMode
-@ConditionalOnProperty(name = "rpc.loadBalance.type", havingValue = "consistenthash", matchIfMissing = false)
 public class ConsistentHashLoadBalance extends AbstractLoadBalance {
 
     // 服务与一致性哈希环的映射

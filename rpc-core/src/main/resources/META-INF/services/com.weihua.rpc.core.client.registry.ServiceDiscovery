@@ -1,0 +1,1 @@
+consul=com.weihua.rpc.core.client.registry.impl.ConsulServiceDiscovery

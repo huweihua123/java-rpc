@@ -1,6 +1,5 @@
 package com.weihua.rpc.core.server.netty;
 
-import com.weihua.rpc.core.condition.ConditionalOnServerMode;
 import com.weihua.rpc.core.server.RpcServer;
 import com.weihua.rpc.core.server.config.ServerConfig;
 import com.weihua.rpc.core.server.netty.handler.NettyServerInitializer;
@@ -14,8 +13,6 @@ import io.netty.channel.socket.nio.NioServerSocketChannel;
 import io.netty.handler.logging.LogLevel;
 import io.netty.handler.logging.LoggingHandler;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 import javax.annotation.PreDestroy;
@@ -27,15 +24,11 @@ import java.util.concurrent.atomic.AtomicBoolean;
  */
 @Slf4j
 @Component
-// @ConditionalOnProperty(name = "rpc.mode", havingValue = "server", matchIfMissing = false)
-@ConditionalOnServerMode
 public class NettyRpcServer implements RpcServer {
 
-    @Autowired
-    private ServerConfig serverConfig;
-
-    @Autowired
-    private ServiceProvider serviceProvider;
+    // 服务器相关依赖
+    private final ServerConfig serverConfig;
+    private final ServiceProvider serviceProvider;
 
     // netty服务器组件
     private EventLoopGroup bossGroup;
@@ -44,6 +37,19 @@ public class NettyRpcServer implements RpcServer {
 
     // 服务器状态
     private final AtomicBoolean running = new AtomicBoolean(false);
+
+    /**
+     * 构造函数，使用构造器注入依赖
+     * 
+     * @param serverConfig 服务器配置
+     * @param serviceProvider 服务提供者
+     */
+    public NettyRpcServer(ServerConfig serverConfig, ServiceProvider serviceProvider) {
+        this.serverConfig = serverConfig;
+        this.serviceProvider = serviceProvider;
+        log.info("NettyRpcServer已创建，配置：host={}，port={}", 
+                serverConfig.getHost(), serverConfig.getPort());
+    }
 
     @Override
     public void start() throws Exception {

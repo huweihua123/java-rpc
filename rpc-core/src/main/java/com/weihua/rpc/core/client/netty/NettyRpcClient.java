@@ -5,9 +5,8 @@ import com.weihua.rpc.common.model.RpcResponse;
 import com.weihua.rpc.core.client.config.ClientConfig;
 import com.weihua.rpc.core.client.invoker.Invoker;
 import com.weihua.rpc.core.client.netty.handler.NettyClientInitializer;
-import com.weihua.rpc.core.client.registry.ServiceCenter;
+import com.weihua.rpc.core.client.registry.ServiceDiscovery;
 import com.weihua.rpc.core.client.registry.balance.LoadBalance;
-import com.weihua.rpc.core.condition.ConditionalOnClientMode;
 import com.weihua.rpc.core.protocol.RpcFutureManager;
 import io.netty.bootstrap.Bootstrap;
 import io.netty.channel.EventLoopGroup;
@@ -15,34 +14,20 @@ import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.nio.NioSocketChannel;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.stereotype.Component;
 
-import javax.annotation.PostConstruct;
-import javax.annotation.PreDestroy;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 /**
  * Netty RPC 客户端
- * Spring管理的组件，负责处理与服务端的通信
+ * 负责处理与服务端的通信
  */
 @Slf4j
-@Component
-// @ConditionalOnProperty(name = "rpc.mode", havingValue = "client",
-// matchIfMissing = false)
-@ConditionalOnClientMode
 public class NettyRpcClient {
 
-    @Autowired
-    private ClientConfig clientConfig;
-
-    @Autowired
-    private ServiceCenter serviceCenter;
-
-    @Autowired
-    private LoadBalance loadBalance;
+    private final ClientConfig clientConfig;
+    private final ServiceDiscovery serviceCenter;
+    private final LoadBalance loadBalance;
 
     // 网络组件
     @Getter
@@ -50,9 +35,22 @@ public class NettyRpcClient {
     private EventLoopGroup eventLoopGroup;
 
     /**
+     * 构造函数，接收所需依赖
+     * 
+     * @param clientConfig  客户端配置
+     * @param serviceCenter 服务发现中心
+     * @param loadBalance   负载均衡策略
+     */
+    public NettyRpcClient(ClientConfig clientConfig, ServiceDiscovery serviceCenter, LoadBalance loadBalance) {
+        this.clientConfig = clientConfig;
+        this.serviceCenter = serviceCenter;
+        this.loadBalance = loadBalance;
+        init();
+    }
+
+    /**
      * 初始化Netty组件
      */
-    @PostConstruct
     public void init() {
         // 初始化Netty组件
         this.eventLoopGroup = new NioEventLoopGroup();
@@ -139,7 +137,6 @@ public class NettyRpcClient {
     /**
      * 释放资源
      */
-    @PreDestroy
     public void close() {
         // 关闭RPC Future管理器
         RpcFutureManager.shutdown();

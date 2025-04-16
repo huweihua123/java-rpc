@@ -17,7 +17,7 @@ import org.springframework.context.annotation.ComponentScan;
  */
 @Slf4j
 @SpringBootApplication
-@ComponentScan(basePackages = { "com.weihua.rpc" })
+//@ComponentScan(basePackages = { "com.weihua.rpc" })
 public class RpcProviderApplication {
 
     public static void main(String[] args) {

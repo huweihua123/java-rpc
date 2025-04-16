@@ -1,7 +1,7 @@
 /*
  * @Author: weihua hu
  * @Date: 2025-04-10 02:22:26
- * @LastEditTime: 2025-04-12 13:54:12
+ * @LastEditTime: 2025-04-14 16:28:21
  * @LastEditors: weihua hu
  * @Description: 
  */
@@ -9,72 +9,62 @@ package com.weihua.rpc.core.server.config;
 
 import lombok.Getter;
 import lombok.Setter;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.stereotype.Component;
+import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.PostConstruct;
 
 /**
  * 服务器配置
  */
-@Component
 @Getter
 @Setter
+@Slf4j
 public class ServerConfig {
 
     /**
      * 服务绑定主机名
      */
-    @Value("${rpc.server.host:0.0.0.0}")
-    private String host;
+    private String host = "0.0.0.0";
 
     /**
      * 服务端口
      */
-    @Value("${rpc.server.port:9000}")
-    private int port;
+    private int port = 9000;
 
     /**
      * IO线程数量
      */
-    @Value("${rpc.server.io.threads:0}")
-    private int ioThreads;
+    private int ioThreads = 0;
 
     /**
      * 工作线程数量
      */
-    @Value("${rpc.server.worker.threads:200}")
-    private int workerThreads;
+    private int workerThreads = 200;
 
     /**
      * 最大连接数
      */
-    @Value("${rpc.server.max.connections:10000}")
-    private int maxConnections;
+    private int maxConnections = 10000;
 
     /**
      * 读空闲超时时间（秒）
      */
-    @Value("${rpc.server.idle.timeout.reader:180}")
-    private int readerIdleTime;
+    private int readerIdleTime = 180;
 
     /**
      * 写空闲超时时间（秒）
      */
-    @Value("${rpc.server.idle.timeout.writer:60}")
-    private int writerIdleTime;
+    private int writerIdleTime = 60;
 
     /**
      * 所有类型空闲超时时间（秒）
      */
-    @Value("${rpc.server.idle.timeout.all:0}")
-    private int allIdleTime;
+    private int allIdleTime = 0;
 
     /**
      * 请求处理超时时间（毫秒）
      */
-    @Value("${rpc.server.request.timeout:5000}")
-    private int requestTimeout;
+    private int requestTimeout = 5000;
 
     /**
      * 初始化方法
@@ -86,10 +76,7 @@ public class ServerConfig {
             ioThreads = Runtime.getRuntime().availableProcessors() * 2;
         }
 
-        System.out.println("服务器配置: " +
-                "地址=" + host + ":" + port + ", " +
-                "IO线程=" + ioThreads + ", " +
-                "工作线程=" + workerThreads + ", " +
-                "最大连接数=" + maxConnections);
+        log.info("服务器配置: 地址={}:{}, IO线程={}, 工作线程={}, 最大连接数={}",
+                host, port, ioThreads, workerThreads, maxConnections);
     }
 }

@@ -1,19 +1,14 @@
 /*
  * @Author: weihua hu
  * @Date: 2025-04-10 02:01:51
- * @LastEditTime: 2025-04-12 14:07:57
+ * @LastEditTime: 2025-04-15 00:12:52
  * @LastEditors: weihua hu
  * @Description: 
  */
-package com.weihua.rpc.core.client.registry.balance;
+package com.weihua.rpc.core.client.registry.balance.impl;
 
 import com.weihua.rpc.common.model.RpcRequest;
 import com.weihua.rpc.core.client.invoker.Invoker;
-import com.weihua.rpc.core.condition.ConditionalOnClientMode;
-
-import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.stereotype.Component;
 
 import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
@@ -21,11 +16,6 @@ import java.util.concurrent.ThreadLocalRandom;
 /**
  * 随机负载均衡实现
  */
-@Component("randomLoadBalance")
-// @ConditionalOnExpression("'${rpc.mode:server}'.equals('client') &&
-// '${rpc.loadBalance.type:random}'.equals('random')")
-@ConditionalOnClientMode
-@ConditionalOnProperty(name = "rpc.loadBalance.type", havingValue = "random", matchIfMissing = false)
 public class RandomLoadBalance extends AbstractLoadBalance {
 
     @Override

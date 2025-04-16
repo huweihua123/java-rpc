@@ -1,99 +1,42 @@
 /*
  * @Author: weihua hu
- * @Date: 2025-04-10 02:36:33
- * @LastEditTime: 2025-04-10 02:36:34
+ * @Date: 2025-04-15 02:30:45
+ * @LastEditTime: 2025-04-15 02:08:24
  * @LastEditors: weihua hu
- * @Description:
+ * @Description: 
  */
 package com.weihua.rpc.springboot.autoconfigure;
 
-import com.weihua.rpc.core.client.config.ClientConfig;
-import com.weihua.rpc.core.client.config.DiscoveryConfig;
+import com.weihua.rpc.core.condition.ConditionalOnClientMode;
 import com.weihua.rpc.spring.config.RpcClientConfiguration;
-import com.weihua.rpc.springboot.listener.RpcClientInitListener;
-import com.weihua.rpc.springboot.properties.RpcClientProperties;
-import com.weihua.rpc.springboot.properties.RpcRegistryProperties;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import com.weihua.rpc.spring.processor.RpcReferenceBeanPostProcessor;
+import com.weihua.rpc.springboot.configurer.CircuitBreakerConfigurer;
+import com.weihua.rpc.springboot.configurer.ClientConfigurer;
+import com.weihua.rpc.springboot.configurer.DiscoveryConfigurer;
+
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
 /**
  * RPC客户端自动配置类
+ * 仅在客户端模式下加载
  */
 @Configuration
-@ConditionalOnClass(ClientConfig.class)
-@EnableConfigurationProperties({RpcClientProperties.class, RpcRegistryProperties.class})
-@Import(RpcClientConfiguration.class)
-//@ConditionalOnProperty(prefix = "rpc.client", name = "enabled", havingValue = "true", matchIfMissing = true)
-//@ConditionalOnProperty(name = "rpc.mode", havingValue = "client", matchIfMissing = false)
-@ConditionalOnProperty(
-        prefix = "rpc",
-        value = {
-                "client.enabled=true",
-                "mode=client"
-        },
-        matchIfMissing = false
-)
+@ConditionalOnClientMode
+@Import({
+        RpcClientConfiguration.class, // 导入核心客户端配置
+        ClientConfigurer.class, // 客户端配置绑定器
+        DiscoveryConfigurer.class, // 服务发现配置绑定器
+        CircuitBreakerConfigurer.class // 添加熔断器配置绑定器
+})
 public class RpcClientAutoConfiguration {
 
-    @Autowired
-    private RpcClientProperties clientProperties;
-
-    @Autowired
-    private RpcRegistryProperties registryProperties;
-
     /**
-     * 配置客户端配置Bean
+     * 注册RPC引用注解处理器
      */
     @Bean
-    @ConditionalOnMissingBean
-    public ClientConfig clientConfig() {
-        ClientConfig config = new ClientConfig();
-
-        // 从属性中注入配置
-        config.setTimeout(clientProperties.getTimeout());
-        config.setConnectTimeout(clientProperties.getConnectTimeout());
-        config.setMaxRetryAttempts(clientProperties.getRetries());
-        config.setRetryEnable(clientProperties.isRetryEnable());
-        config.setRetryIntervalMillis(clientProperties.getRetryInterval());
-        config.setServiceVersion(clientProperties.getServiceVersion());
-        config.setServiceGroup(clientProperties.getServiceGroup());
-
-        // 熔断器配置
-        config.setCircuitBreakerEnable(clientProperties.isCircuitBreakerEnable());
-
-        return config;
-    }
-
-    /**
-     * 配置注册中心配置Bean
-     */
-    @Bean
-    @ConditionalOnMissingBean
-    public DiscoveryConfig registryConfig() {
-        DiscoveryConfig config = new DiscoveryConfig();
-
-        // 从属性中注入配置
-        config.setType(registryProperties.getType());
-        config.setAddress(registryProperties.getAddress());
-        config.setConnectTimeout(registryProperties.getConnectTimeout());
-        config.setTimeout(registryProperties.getTimeout());
-        config.setRetryTimes(registryProperties.getRetryTimes());
-        config.setSyncPeriod(registryProperties.getSyncPeriod());
-
-        return config;
-    }
-
-    /**
-     * 客户端初始化监听器
-     */
-    @Bean
-    public RpcClientInitListener rpcClientInitListener() {
-        return new RpcClientInitListener();
+    public RpcReferenceBeanPostProcessor rpcReferenceBeanPostProcessor() {
+        return new RpcReferenceBeanPostProcessor();
     }
 }

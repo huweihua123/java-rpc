@@ -24,9 +24,6 @@ import java.util.Map;
 @Slf4j
 @Component
 @Data
-// @ConditionalOnProperty(name = "rpc.mode", havingValue = "server",
-// matchIfMissing = false)
-@ConditionalOnServerMode
 public class ServiceProvider {
 
     // 服务实例映射表

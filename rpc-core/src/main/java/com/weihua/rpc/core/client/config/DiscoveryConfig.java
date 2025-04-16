@@ -1,7 +1,7 @@
 /*
  * @Author: weihua hu
  * @Date: 2025-04-10 02:01:21
- * @LastEditTime: 2025-04-11 19:59:50
+ * @LastEditTime: 2025-04-14 16:25:32
  * @LastEditors: weihua hu
  * @Description: 
  */
@@ -9,81 +9,75 @@ package com.weihua.rpc.core.client.config;
 
 import lombok.Getter;
 import lombok.Setter;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.stereotype.Component;
+import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.PostConstruct;
 
 /**
  * 注册中心配置
  */
-@Component
 @Getter
 @Setter
+@Slf4j
 public class DiscoveryConfig {
 
     /**
      * 注册中心类型
      */
-    @Value("${rpc.discovery:consul}")
-    private String type;
+    private String type = "consul";
 
     /**
      * 注册中心地址
      */
-    @Value("${rpc.discovery.address:127.0.0.1:8500}")
-    private String address;
+    private String address = "127.0.0.1:8500";
 
     /**
      * 连接超时（毫秒）
      */
-    @Value("${rpc.discovery.connect.timeout:5000}")
-    private int connectTimeout;
+    private int connectTimeout = 5000;
 
     /**
      * 请求超时（毫秒）
      */
-    @Value("${rpc.discovery.timeout:15000}")
-    private int timeout;
+    private int timeout = 15000;
 
     /**
      * 重试次数
      */
-    @Value("${rpc.discovery.retry.times:3}")
-    private int retryTimes;
+    private int retryTimes = 3;
 
     /**
      * 同步周期（秒）
      */
-    @Value("${rpc.discovery.sync.period:30}")
-    private int syncPeriod;
+    private int syncPeriod = 30;
 
     /**
      * 是否启用服务健康检查
      */
-    @Value("${rpc.discovery.healthcheck.enabled:true}")
-    private boolean healthCheckEnabled;
+    private boolean healthCheckEnabled = true;
 
     /**
      * 健康检查间隔（秒）
      */
-    @Value("${rpc.discovery.healthcheck.interval:15}")
-    private int healthCheckInterval;
+    private int healthCheckInterval = 15;
 
     /**
      * 是否缓存服务元数据
      */
-    @Value("${rpc.discovery.metadata.cache:true}")
-    private boolean metadataCache;
+    private boolean metadataCache = true;
 
     /**
      * 元数据缓存过期时间（秒）
      */
-    @Value("${rpc.discovery.metadata.expire:300}")
-    private int metadataExpireSeconds;
+    private int metadataExpireSeconds = 300;
 
     @PostConstruct
     public void init() {
-        // 初始化逻辑，如需记录配置信息可在此添加
+        // 初始化逻辑，记录配置信息
+        log.info("已加载注册中心配置: 类型={}, 地址={}, 连接超时={}ms, 请求超时={}ms, 重试次数={}, 同步周期={}秒, " +
+                "健康检查={}, 元数据缓存={}",
+                type, address, connectTimeout, timeout, retryTimes, syncPeriod,
+                healthCheckEnabled ? "启用(间隔" + healthCheckInterval + "秒)" : "禁用",
+                metadataCache ? "启用(过期时间" + metadataExpireSeconds + "秒)" : "禁用");
     }
 }

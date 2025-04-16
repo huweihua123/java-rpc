@@ -4,18 +4,12 @@ import com.orbitz.consul.Consul;
 import com.orbitz.consul.HealthClient;
 import com.orbitz.consul.model.health.ServiceHealth;
 import com.weihua.rpc.common.model.RpcRequest;
-import com.weihua.rpc.core.client.cache.ServiceAddressCache;
-import com.weihua.rpc.core.client.config.DiscoveryConfig;
 import com.weihua.rpc.core.client.invoker.Invoker;
-import com.weihua.rpc.core.client.pool.InvokerManager;
-import com.weihua.rpc.core.client.registry.ServiceCenter;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
-import org.springframework.stereotype.Component;
+import com.weihua.rpc.core.client.registry.AbstractServiceDiscovery;
+import com.weihua.rpc.core.server.annotation.MethodSignature;
 
-import javax.annotation.PostConstruct;
-import javax.annotation.PreDestroy;
+import lombok.extern.slf4j.Slf4j;
+
 import java.net.InetSocketAddress;
 import java.util.*;
 import java.util.concurrent.*;
@@ -25,9 +19,7 @@ import java.util.function.Consumer;
  * Consul服务发现中心实现
  */
 @Slf4j
-@Component
-@ConditionalOnExpression("'${rpc.mode:server}'.equals('client') && '${rpc.registry.type:consul}'.equals('consul')")
-public class ConsulServiceCenter implements ServiceCenter {
+public class ConsulServiceDiscovery extends AbstractServiceDiscovery {
 
     // 服务跟踪最长时间 (24小时)，可配置
     private static final long TRACKING_TIMEOUT_MS = 24 * 60 * 60 * 1000;
@@ -48,35 +40,25 @@ public class ConsulServiceCenter implements ServiceCenter {
     private final Map<String, Long> trackedServicesWithTimestamp = new ConcurrentHashMap<>();
     // 跟踪服务失败计数
     private final Map<String, Integer> serviceFailureCount = new ConcurrentHashMap<>();
-    // 新增：已订阅服务跟踪集合
+    // 已订阅服务跟踪集合
     private final Set<String> subscribedServices = ConcurrentHashMap.newKeySet();
-
-    @Autowired
-    private DiscoveryConfig registryConfig;
-
-    @Autowired
-    private InvokerManager invokerManager;
-
-    @Autowired
-    private ServiceAddressCache addressCache;
 
     private Consul consulClient;
     // 定时同步任务
     private ScheduledExecutorService scheduler;
-
     // 同步任务执行器
     private ExecutorService syncExecutor;
 
-    @PostConstruct
+    @Override
     public void init() {
         // 初始化Consul客户端
         try {
-            String address = registryConfig.getAddress();
+            String address = discoveryConfig.getAddress();
             String host = address.split(":")[0];
             int port = Integer.parseInt(address.split(":")[1]);
             this.consulClient = Consul.builder().withUrl(String.format("http://%s:%d", host, port))
-                    .withConnectTimeoutMillis(registryConfig.getConnectTimeout())
-                    .withReadTimeoutMillis(registryConfig.getTimeout())
+                    .withConnectTimeoutMillis(discoveryConfig.getConnectTimeout())
+                    .withReadTimeoutMillis(discoveryConfig.getTimeout())
                     .build();
 
             log.info("Consul客户端初始化成功: {}:{}", host, port);
@@ -180,7 +162,7 @@ public class ConsulServiceCenter implements ServiceCenter {
             } catch (Exception e) {
                 log.error("定时同步服务调度失败: {}", e.getMessage(), e);
             }
-        }, 0, registryConfig.getSyncPeriod(), TimeUnit.SECONDS);
+        }, 0, discoveryConfig.getSyncPeriod(), TimeUnit.SECONDS);
     }
 
     /**
@@ -256,7 +238,7 @@ public class ConsulServiceCenter implements ServiceCenter {
         // 无论服务是否存在，都记录这次尝试并更新时间戳
         trackedServicesWithTimestamp.put(serviceName, System.currentTimeMillis());
 
-        // 新增：确保服务被监听，即使当前没有地址
+        // 确保服务被监听，即使当前没有地址
         ensureServiceWatched(serviceName);
 
         // 获取服务地址列表
@@ -319,35 +301,14 @@ public class ConsulServiceCenter implements ServiceCenter {
     }
 
     @Override
-    public InetSocketAddress serviceDiscovery(RpcRequest request) {
-        String serviceName = request.getInterfaceName();
-
-        // 无论服务是否存在，都记录这次尝试并更新时间戳
-        trackedServicesWithTimestamp.put(serviceName, System.currentTimeMillis());
-
-        // 获取服务地址列表
-        List<String> addresses = addressCache.getAddresses(serviceName);
-        if (addresses == null || addresses.isEmpty()) {
-            // 如果缓存中没有，尝试同步
-            if (syncServiceFromConsul(serviceName)) {
-                addresses = addressCache.getAddresses(serviceName);
-            }
-
-            if (addresses == null || addresses.isEmpty()) {
-                log.warn("未发现服务: {}", serviceName);
-                return null;
-            }
-        }
-
-        // 简单的随机选择一个地址
-        String address = addresses.get(ThreadLocalRandom.current().nextInt(addresses.size()));
-        return parseAddress(address);
-    }
-
-    @Override
     public boolean isMethodRetryable(String methodSignature) {
         // 从缓存查询是否可重试
-        return retryableMethodCache.computeIfAbsent(methodSignature, k -> checkMethodRetryable(methodSignature));
+        boolean result = retryableMethodCache.computeIfAbsent(methodSignature,
+                k -> checkMethodRetryable(methodSignature));
+        if (result) {
+            log.debug("方法 {} 被标记为可重试", methodSignature);
+        }
+        return result;
     }
 
     /**
@@ -361,18 +322,28 @@ public class ConsulServiceCenter implements ServiceCenter {
             // 优先从元数据缓存获取
             Map<String, String> metadata = getServiceMetadata(serviceName);
             if (metadata != null && !metadata.isEmpty()) {
+                // 使用统一的方法签名处理工具类
+                String normalizedMethod = MethodSignature.normalizeMethodSignature(methodSignature);
+                log.debug("检查方法是否可重试: 原始签名={}, 规范化键={}", methodSignature, normalizedMethod);
+
                 // 1. 检查精确方法的可重试标记
-                String retryableKey = "retryable-" + normalizeMethodSignature(methodSignature);
+                String retryableKey = "retryable-" + normalizedMethod;
                 if (metadata.containsKey(retryableKey)) {
+                    log.debug("找到方法{}的重试配置: {}", methodSignature, metadata.get(retryableKey));
                     return "true".equalsIgnoreCase(metadata.get(retryableKey));
                 }
 
                 // 2. 检查是否有方法重试配置
-                String retryConfigKey = "retryconfig-" + normalizeMethodSignature(methodSignature);
+                String retryConfigKey = "retryconfig-" + normalizedMethod;
                 if (metadata.containsKey(retryConfigKey)) {
                     // 只要有配置就认为是可重试的
+                    log.debug("找到方法{}的重试配置信息", methodSignature);
                     return true;
                 }
+
+                log.debug("未找到方法{}的重试配置", methodSignature);
+            } else {
+                log.debug("服务{}没有元数据或元数据为空", serviceName);
             }
 
             return false;
@@ -400,7 +371,7 @@ public class ConsulServiceCenter implements ServiceCenter {
             }
 
             Map<String, String> retryConfig = new HashMap<>();
-            String normalizedMethod = normalizeMethodSignature(methodSignature);
+            String normalizedMethod = MethodSignature.normalizeMethodSignature(methodSignature);
 
             // 提取重试相关的元数据
             for (Map.Entry<String, String> entry : metadata.entrySet()) {
@@ -410,12 +381,14 @@ public class ConsulServiceCenter implements ServiceCenter {
                 if (key.startsWith("retry-" + normalizedMethod + "-")) {
                     String configName = key.substring(("retry-" + normalizedMethod + "-").length());
                     retryConfig.put(configName, entry.getValue());
+                    log.debug("匹配到方法{}的重试配置: {}={}", methodSignature, configName, entry.getValue());
                 }
             }
 
             // 如果找到了配置，则添加基础标志
             if (!retryConfig.isEmpty()) {
                 retryConfig.put("retryable", "true");
+                log.debug("方法{}有{}条重试配置", methodSignature, retryConfig.size());
             }
 
             return retryConfig;
@@ -461,13 +434,6 @@ public class ConsulServiceCenter implements ServiceCenter {
     private String extractServiceName(String methodSignature) {
         int hashIndex = methodSignature.indexOf('#');
         return hashIndex > 0 ? methodSignature.substring(0, hashIndex) : methodSignature;
-    }
-
-    /**
-     * 规范化方法签名，以适应元数据键名
-     */
-    private String normalizeMethodSignature(String methodSignature) {
-        return methodSignature.replace('#', '.').replace("(", "_").replace(")", "").replace(",", "_").replace(" ", "");
     }
 
     @Override
@@ -527,7 +493,6 @@ public class ConsulServiceCenter implements ServiceCenter {
     }
 
     @Override
-    @PreDestroy
     public void close() {
         // 关闭执行器
         if (syncExecutor != null) {

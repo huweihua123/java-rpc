@@ -296,7 +296,7 @@ public class InvokerManager {
      */
     private void healthCheckTask() {
         try {
-//            log.info("执行连接健康检查任务");
+            // log.info("执行连接健康检查任务");
             for (Map.Entry<InetSocketAddress, Invoker> entry : invokerMap.entrySet()) {
                 InetSocketAddress address = entry.getKey();
                 Invoker invoker = entry.getValue();
@@ -601,10 +601,11 @@ public class InvokerManager {
                 if (status != null && status.confirmedDown) {
                     continue; // 跳过已确认下线的服务
                 }
-//                log.info("connectMode: {}", connectionMode);
+                // log.info("connectMode: {}", connectionMode);
                 // 获取或创建Invoker
                 if (connectionMode == ConnectionMode.EAGER) {
-//                    log.info("使用EAGER模式获取Invoker: {}:{}", address.getHostString(), address.getPort());
+                    // log.info("使用EAGER模式获取Invoker: {}:{}", address.getHostString(),
+                    // address.getPort());
                     // 对于EAGER模式，直接从map中获取
                     Invoker invoker = invokerMap.get(address);
                     if (invoker != null && invoker.isAvailable()) {
@@ -654,9 +655,10 @@ public class InvokerManager {
             ServiceStatus status = serviceStatusMap.get(address);
 
             if (invoker != null) {
-                log.info("连接状态 - 地址: {}:{}, 可用: {}, 活跃请求: {}, 平均响应时间: {}ms, 成功率: {}%, 重试次数: {}{}",
+                log.info("连接状态 - 地址: {}:{}, 可用: {}, 活跃请求: {}, 总请求数: {}, 平均响应时间: {}ms, 成功率: {}%, 重试次数: {}{}",
                         address.getHostString(), address.getPort(),
                         invoker.isAvailable(), invoker.getActiveCount(),
+                        invoker.getRequestCount(),
                         String.format("%.2f", invoker.getAvgResponseTime()),
                         String.format("%.2f", invoker.getSuccessRate() * 100),
                         status != null ? status.retryCount : 0,

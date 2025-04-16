@@ -1,19 +1,28 @@
 /*
  * @Author: weihua hu
  * @Date: 2025-04-10 02:33:00
- * @LastEditTime: 2025-04-12 14:04:43
+ * @LastEditTime: 2025-04-16 13:39:02
  * @LastEditors: weihua hu
  * @Description:
  */
 package com.weihua.rpc.spring.config;
 
-import com.weihua.rpc.core.condition.ConditionalOnServerMode;
 import com.weihua.rpc.core.server.RpcServer;
+import com.weihua.rpc.core.server.config.RateLimitConfig;
+import com.weihua.rpc.core.server.config.RegistryConfig;
 import com.weihua.rpc.core.server.config.ServerConfig;
+import com.weihua.rpc.core.server.netty.NettyRpcServer;
+import com.weihua.rpc.core.server.provider.ServiceProvider;
+import com.weihua.rpc.core.server.ratelimit.RateLimitManager;
+import com.weihua.rpc.core.server.ratelimit.RateLimitProvider;
+import com.weihua.rpc.core.server.registry.ServiceRegistry;
+import com.weihua.rpc.core.server.registry.ServiceRegistryFactory;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.context.annotation.ComponentScan;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.context.event.ContextRefreshedEvent;
 import org.springframework.context.event.EventListener;
 
@@ -21,29 +30,80 @@ import javax.annotation.PreDestroy;
 
 /**
  * RPC服务端配置类
- * 自动导入服务端所需的所有Bean并处理服务器的启动和关闭
+ * 使用显式Bean定义代替组件扫描
  */
 @Configuration
-@ComponentScan({
-        "com.weihua.rpc.core.server",
-        "com.weihua.rpc.core.protocol",
-        "com.weihua.rpc.core.serialize"
-})
-// @ConditionalOnProperty(name = "rpc.mode", havingValue = "server",
-// matchIfMissing = false)
-@ConditionalOnServerMode
+@Slf4j
 public class RpcServerConfiguration {
-
+    @Lazy
     @Autowired
     private RpcServer rpcServer;
 
     @Autowired
     private ServerConfig serverConfig;
 
-    /**
-     * 服务端配置初始化完成后的日志
-     */
     public RpcServerConfiguration() {
+        log.info("RPC服务端配置已初始化");
+    }
+
+    /**
+     * 使用构造器注入
+     * 
+     * @param rpcServer    RPC服务器
+     * @param serverConfig 服务器配置
+     */
+    // public RpcServerConfiguration(RpcServer rpcServer, ServerConfig serverConfig)
+    // {
+    // this.rpcServer = rpcServer;
+    // this.serverConfig = serverConfig;
+    // log.info("RPC服务端配置已初始化");
+    // }
+
+    /**
+     * 限流提供者
+     */
+    @Bean
+    @ConditionalOnMissingBean
+    public RateLimitProvider rateLimitProvider(RateLimitConfig rateLimitConfig) {
+        return new RateLimitProvider(rateLimitConfig);
+    }
+
+    /**
+     * 限流管理器
+     */
+    @Bean
+    @ConditionalOnMissingBean
+    public RateLimitManager rateLimitManager() {
+        return new RateLimitManager();
+    }
+
+    /**
+     * 服务提供者
+     */
+    @Bean
+    @ConditionalOnMissingBean
+    public ServiceProvider serviceProvider() {
+        return new ServiceProvider();
+    }
+
+    /**
+     * RPC服务器
+     * 使用NettyRpcServer实现，并通过方法参数注入依赖
+     */
+    @Bean
+    @ConditionalOnMissingBean
+    public RpcServer rpcServer(ServerConfig serverConfig, ServiceProvider serviceProvider) {
+        return new NettyRpcServer(serverConfig, serviceProvider);
+    }
+
+    /**
+     * 服务注册中心
+     * 使用工厂创建基于SPI的注册中心实例
+     */
+    @Bean
+    @ConditionalOnMissingBean(ServiceRegistry.class)
+    public ServiceRegistry serviceRegistry(RegistryConfig registryConfig) {
+        return ServiceRegistryFactory.getServiceRegistry(registryConfig);
     }
 
     /**
@@ -57,11 +117,11 @@ public class RpcServerConfiguration {
                 // 启动RPC服务器
                 if (!rpcServer.isRunning()) {
                     rpcServer.start();
-                    System.out.println("RPC服务器已启动，监听地址: " + serverConfig.getHost() + ":" + serverConfig.getPort());
+                    log.info("RPC服务器已启动，监听地址: {}:{}",
+                            serverConfig.getHost(), serverConfig.getPort());
                 }
             } catch (Exception e) {
-                System.err.println("RPC服务器启动失败: " + e.getMessage());
-                e.printStackTrace();
+                log.error("RPC服务器启动失败: " + e.getMessage(), e);
             }
         }
     }
@@ -73,7 +133,7 @@ public class RpcServerConfiguration {
     public void stopRpcServer() {
         if (rpcServer != null && rpcServer.isRunning()) {
             rpcServer.stop();
-            System.out.println("RPC服务器已关闭");
+            log.info("RPC服务器已关闭");
         }
     }
 }

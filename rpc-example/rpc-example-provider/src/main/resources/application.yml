@@ -8,8 +8,11 @@ spring:
 # RPC 配置
 rpc:
   mode: server  # 新增：指定模式为服务端，可选值: client, server
+
   loadBalance:
     type: consistenthash
+  serialize:
+    type: json
   server:
     port: 9000
     host: 127.0.0.1

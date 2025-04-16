@@ -5,15 +5,10 @@
  * @LastEditors: weihua hu
  * @Description: 
  */
-package com.weihua.rpc.core.client.registry.balance;
+package com.weihua.rpc.core.client.registry.balance.impl;
 
 import com.weihua.rpc.common.model.RpcRequest;
 import com.weihua.rpc.core.client.invoker.Invoker;
-import com.weihua.rpc.core.condition.ConditionalOnClientMode;
-
-import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -22,10 +17,6 @@ import java.util.concurrent.ThreadLocalRandom;
 /**
  * 最小活跃数负载均衡实现
  */
-@Component("leastActiveLoadBalance")
-// @ConditionalOnExpression("'${rpc.mode:server}'.equals('client') &&'${rpc.loadBalance.type:random}'.equals('leastactive')")
-@ConditionalOnClientMode
-@ConditionalOnProperty(name = "rpc.loadBalance.type", havingValue = "leastactive", matchIfMissing = false)
 public class LeastActiveLoadBalance extends AbstractLoadBalance {
 
     @Override

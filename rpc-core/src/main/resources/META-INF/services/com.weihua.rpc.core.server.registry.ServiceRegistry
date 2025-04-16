@@ -1,3 +1,8 @@
-com.weihua.rpc.core.server.registry.impl.ConsulServiceRegistry
-com.weihua.rpc.core.server.registry.impl.ZkServiceRegistry
-com.weihua.rpc.core.server.registry.impl.LocalServiceRegistry
+# Consul 服务注册中心实现
+consul=com.weihua.rpc.core.server.registry.impl.ConsulServiceRegistry
+
+# ZooKeeper 服务注册中心实现
+zookeeper=com.weihua.rpc.core.server.registry.impl.ZkServiceRegistry
+
+# 本地内存服务注册中心实现
+local=com.weihua.rpc.core.server.registry.impl.LocalServiceRegistry

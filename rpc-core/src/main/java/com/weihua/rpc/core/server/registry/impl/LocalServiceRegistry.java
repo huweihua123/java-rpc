@@ -1,19 +1,14 @@
 /*
  * @Author: weihua hu
  * @Date: 2025-04-10 02:20:25
- * @LastEditTime: 2025-04-12 14:17:16
+ * @LastEditTime: 2025-04-15 00:35:15
  * @LastEditors: weihua hu
  * @Description: 
  */
 package com.weihua.rpc.core.server.registry.impl;
 
-import com.weihua.rpc.core.condition.ConditionalOnServerMode;
-import com.weihua.rpc.core.server.registry.ServiceRegistry;
+import com.weihua.rpc.core.server.registry.AbstractServiceRegistry;
 import lombok.extern.slf4j.Slf4j;
-
-import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.stereotype.Component;
 
 import java.net.InetSocketAddress;
 import java.util.Map;
@@ -24,15 +19,16 @@ import java.util.concurrent.ConcurrentHashMap;
  * 用于开发和测试环境，不依赖外部注册中心
  */
 @Slf4j
-@Component("localServiceRegistry")
-// @ConditionalOnExpression("'${rpc.mode:server}'.equals('server') &&
-// '${rpc.registry.type:local}'.equals('local')")
-@ConditionalOnServerMode
-@ConditionalOnProperty(name = "rpc.registry.type", havingValue = "local", matchIfMissing = false)
-public class LocalServiceRegistry implements ServiceRegistry {
+public class LocalServiceRegistry extends AbstractServiceRegistry {
 
     // 服务注册表，存储服务名称到地址的映射
     private final Map<String, InetSocketAddress> serviceRegistry = new ConcurrentHashMap<>();
+
+    @Override
+    public void init() {
+        log.info("初始化本地服务注册中心");
+        // 本地注册中心不需要额外初始化
+    }
 
     @Override
     public void register(Class<?> clazz, InetSocketAddress serviceAddress) {
