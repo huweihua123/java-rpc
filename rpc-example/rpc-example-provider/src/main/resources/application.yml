@@ -22,7 +22,7 @@ rpc:
     type: consul
     address: 127.0.0.1:8500
   ratelimit:
-    enabled: false
+    enabled: true
     default:
       qps: 100
 

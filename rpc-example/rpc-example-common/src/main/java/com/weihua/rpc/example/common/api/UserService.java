@@ -1,12 +1,13 @@
 /*
  * @Author: weihua hu
  * @Date: 2025-04-10 15:03:30
- * @LastEditTime: 2025-04-10 15:03:31
+ * @LastEditTime: 2025-04-16 20:29:11
  * @LastEditors: weihua hu
  * @Description: 
  */
 package com.weihua.rpc.example.common.api;
 
+import com.weihua.rpc.core.server.annotation.Retryable;
 import com.weihua.rpc.example.common.model.User;
 
 import java.util.List;
@@ -23,6 +24,7 @@ public interface UserService {
      * @param id 用户ID
      * @return 用户对象，如果不存在则返回null
      */
+    @Retryable(description = "查询操作，无副作用")
     User getUserById(Long id);
 
     /**
@@ -30,6 +32,7 @@ public interface UserService {
      * 
      * @return 用户列表
      */
+    @Retryable(description = "查询操作，无副作用")
     List<User> getAllUsers();
 
     /**
@@ -38,6 +41,7 @@ public interface UserService {
      * @param user 用户信息
      * @return 创建后的用户（带ID）
      */
+    @Retryable(description = "查询操作，无副作用")
     User createUser(User user);
 
     /**

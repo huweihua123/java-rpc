@@ -15,7 +15,7 @@ rpc:
   # 序列化配置
   serialize:
     type: json  # 可选值: json, protobuf
-  
+
   # 客户端配置
   client:
     # 超时配置
@@ -24,13 +24,13 @@ rpc:
     request-timeout: 5             # 请求超时(秒)
     
     # 连接模式配置
-    connection:
-      mode: EAGER                  # 连接模式: EAGER(立即连接), LAZY(按需连接)
-    
+    connection-mode: eager         # 连接模式: EAGER(立即连接), LAZY(按需连接)
+
+    maxRetries: 5                       # 最大重试次数
     # 重试配置
     retry:
       enable: true                 # 是否启用重试
-      max: 5                       # 最大重试次数
+      maxRetries: 5                       # 最大重试次数
       interval: 1000               # 重试间隔(毫秒)
       only-idempotent: true        # 只重试幂等操作
       # 指数退避策略配置
@@ -53,7 +53,7 @@ rpc:
     
     # 负载均衡配置
     load-balance:
-      type: consistentHash               # 负载均衡策略: random, roundrobin, leastactive, consistenthash,weighted
+      type: random             # 负载均衡策略: random, roundrobin, leastactive, consistenthash,weighted
     
     # 服务版本与分组配置
     service:

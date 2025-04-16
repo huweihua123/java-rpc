@@ -167,15 +167,13 @@ public class NettyServerHandler extends SimpleChannelInboundHandler<RpcRequest> 
                 .generate(interfaceName, methodName, parameterTypes);
 
         // 方法级限流检查 - 首先检查该方法是否需要限流
-        if (serviceProvider.getRateLimitManager().isRateLimited(methodSignature)) {
-            // 只有需要限流的方法才执行限流检查
-            if (!serviceProvider.getRateLimitManager().allowRequest(methodSignature)) {
-                log.warn("方法 {} 触发限流，请求被拒绝", methodSignature);
-                return RpcResponse.builder()
-                        .code(429) // Too Many Requests
-                        .message("服务繁忙，请稍后重试")
-                        .build();
-            }
+        // 1. 方法级限流
+        if (!serviceProvider.getRateLimitManager().checkMethodRateLimit(methodSignature)) {
+            log.warn("方法 {} 触发限流，请求被拒绝", methodSignature);
+            return RpcResponse.builder()
+                    .code(429) // Too Many Requests
+                    .message("服务繁忙，请稍后重试")
+                    .build();
         }
 
         // 获取服务实例

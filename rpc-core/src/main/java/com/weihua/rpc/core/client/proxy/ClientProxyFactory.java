@@ -8,10 +8,9 @@ import com.weihua.rpc.core.client.config.ClientConfig;
 import com.weihua.rpc.core.client.netty.NettyRpcClient;
 import com.weihua.rpc.core.client.registry.ServiceDiscovery;
 import com.weihua.rpc.core.condition.ConditionalOnClientMode;
-
+import com.weihua.rpc.core.server.annotation.MethodSignature;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 import java.lang.reflect.InvocationHandler;
@@ -103,6 +102,7 @@ public class ClientProxyFactory {
 
             String interfaceName = interfaceClass.getName();
             String methodName = method.getName();
+            Class<?>[] parameterTypes = method.getParameterTypes();
 
             // 构建请求对象
             RpcRequest rpcRequest = buildRequest(method, args);
@@ -121,13 +121,15 @@ public class ClientProxyFactory {
 
             try {
                 // 生成方法签名
-                String methodSignature = interfaceName + "#" + methodName;
+                String methodSignature = MethodSignature.generate(
+                        interfaceName, methodName, parameterTypes);
+
                 log.debug("调用方法: {}", methodSignature);
 
                 // 判断方法是否可重试
                 boolean canRetry = clientConfig.isRetryEnable()
                         && serviceCenter.isMethodRetryable(methodSignature);
-
+                log.info("canRetry: {}", canRetry);
                 // 发送请求
                 RpcResponse response;
                 if (canRetry) {

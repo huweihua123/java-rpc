@@ -1,0 +1,3 @@
+reject=com.weihua.rpc.core.server.fallback.impl.RejectFallbackHandler
+queue=com.weihua.rpc.core.server.fallback.impl.QueueFallbackHandler
+return_default=com.weihua.rpc.core.server.fallback.impl.DefaultValueFallbackHandler

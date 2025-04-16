@@ -156,25 +156,32 @@ public class RpcServiceBeanPostProcessor implements BeanPostProcessor {
         // 使用实际有效的注解（优先使用实现类注解）
         RateLimit effectiveAnnotation = implAnnotation != null ? implAnnotation : interfaceAnnotation;
 
-        // 如果存在有效的注解，注册到ServiceProvider的限流管理器
+        // 如果存在有效的注解，注册到限流管理器
         if (effectiveAnnotation != null && effectiveAnnotation.enabled()) {
             // 获取方法签名
             String methodSignature = MethodSignature.generate(interfaceMethod.getDeclaringClass(), interfaceMethod);
 
-            // 更新方法QPS限制
-            serviceProvider.getRateLimitProvider().updateMethodQps(methodSignature, effectiveAnnotation.qps());
+            // 获取注解中的QPS限制
+            int qps = effectiveAnnotation.qps();
 
-            // 检查是否明确指定了限流策略
+            // 获取限流策略
             com.weihua.rpc.core.server.annotation.RateLimit.Strategy strategy = effectiveAnnotation.strategy();
-            if (strategy != com.weihua.rpc.core.server.annotation.RateLimit.Strategy.DEFAULT) {
-                // 如果注解中明确指定了策略，则使用注解中的策略覆盖默认策略
-                serviceProvider.getRateLimitProvider().updateMethodStrategy(methodSignature, strategy);
-                log.debug("为方法{}注册限流配置: {} QPS, 策略={} (注解指定)",
-                        methodSignature, effectiveAnnotation.qps(), strategy);
-            } else {
-                // 使用默认策略，不做额外处理，由RateLimitProvider提供默认策略
+
+            // 如果策略是DEFAULT，则使用系统默认策略
+            if (strategy == com.weihua.rpc.core.server.annotation.RateLimit.Strategy.DEFAULT) {
+                // 使用默认策略，将方法配置到限流管理器
+                serviceProvider.getRateLimitManager().configureMethodRateLimit(
+                        methodSignature, qps, serviceProvider.getRateLimitManager().getDefaultStrategy());
+
                 log.debug("为方法{}注册限流配置: {} QPS, 策略=默认",
-                        methodSignature, effectiveAnnotation.qps());
+                        methodSignature, qps);
+            } else {
+                // 使用注解中指定的策略
+                serviceProvider.getRateLimitManager().configureMethodRateLimit(
+                        methodSignature, qps, strategy);
+
+                log.debug("为方法{}注册限流配置: {} QPS, 策略={} (注解指定)",
+                        methodSignature, qps, strategy);
             }
         }
         // 如果没有注解，什么都不做，表示该方法不需要限流

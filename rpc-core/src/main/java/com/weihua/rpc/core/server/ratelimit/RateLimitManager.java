@@ -1,138 +1,184 @@
 package com.weihua.rpc.core.server.ratelimit;
 
-import com.weihua.rpc.core.server.annotation.MethodSignature;
-import com.weihua.rpc.core.server.annotation.RateLimit;
+import com.weihua.rpc.core.server.annotation.RateLimit.Strategy;
+import com.weihua.rpc.core.server.config.RateLimitConfig;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Component;
 
 import javax.annotation.PostConstruct;
-import java.lang.reflect.Method;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * 限流管理器，用于管理服务的限流配置和状态
+ * 限流管理器，专注于配置管理和高层次的限流决策
  */
 @Slf4j
-@Component
 public class RateLimitManager {
 
-    @Autowired
-    private RateLimitProvider rateLimitProvider;
+    private final RateLimitConfig config;
+    private final RateLimitProvider provider;
 
-    // 方法维度的限流器缓存
-    private final Map<String, RateLimit> methodRateLimits = new ConcurrentHashMap<>();
-    private final Map<String, Integer> defaultQps = new ConcurrentHashMap<>();
+    /**
+     * 用于定时任务的线程池
+     */
+    private final ScheduledExecutorService scheduler;
+
+    /**
+     * 获取默认限流策略
+     * 
+     * @return 默认限流策略
+     */
+    public Strategy getDefaultStrategy() {
+        return config.getDefaultStrategy();
+    }
+
+    /**
+     * 统计重置周期（毫秒）
+     */
+    private static final long STATS_RESET_PERIOD_MS = 60_000; // 1分钟
+
+    public RateLimitManager(RateLimitConfig config) {
+        this.config = config;
+        this.provider = new RateLimitProvider(config);
+
+        ThreadFactory threadFactory = new ThreadFactory() {
+            private final AtomicInteger counter = new AtomicInteger(1);
+
+            @Override
+            public Thread newThread(Runnable r) {
+                Thread thread = new Thread(r);
+                thread.setName("ratelimit-scheduler-" + counter.getAndIncrement());
+                thread.setDaemon(true);
+                return thread;
+            }
+        };
+
+        this.scheduler = new ScheduledThreadPoolExecutor(1, threadFactory);
+
+        // 启动统计重置定时任务
+        scheduler.scheduleAtFixedRate(
+                this::resetAllStatistics,
+                STATS_RESET_PERIOD_MS,
+                STATS_RESET_PERIOD_MS,
+                TimeUnit.MILLISECONDS);
+    }
 
     @PostConstruct
     public void init() {
-        log.info("限流管理器初始化完成");
+        log.info("限流管理器初始化完成: 启用状态={}", config.isEnabled() ? "启用" : "禁用");
     }
 
     /**
-     * 注册服务的限流配置
-     *
-     * @param serviceClass 服务类
+     * 检查方法级限流
+     * 
+     * @param methodKey 方法全限定名
+     * @return 是否允许通过
      */
-    public void registerService(Class<?> serviceClass) {
-        // 获取类级别限流配置
-        RateLimit classRateLimit = serviceClass.getAnnotation(RateLimit.class);
-        int defaultQpsValue = (classRateLimit != null && classRateLimit.enabled()) ? classRateLimit.qps()
-                : Integer.MAX_VALUE;
-
-        // 记录服务默认QPS
-        String serviceName = serviceClass.getName();
-        defaultQps.put(serviceName, defaultQpsValue);
-
-        if (classRateLimit != null && classRateLimit.enabled()) {
-            log.info("为服务{}注册类级限流配置: {} QPS, 策略={}", serviceName,
-                    defaultQpsValue, classRateLimit.strategy());
-        }
-
-        // 扫描方法级别限流配置
-        for (Method method : serviceClass.getMethods()) {
-            // 获取方法签名
-            String methodSignature = MethodSignature.generate(serviceClass, method);
-
-            // 检查方法级别限流注解
-            RateLimit methodRateLimit = method.getAnnotation(RateLimit.class);
-            if (methodRateLimit != null && methodRateLimit.enabled()) {
-                // 保存方法限流配置
-                methodRateLimits.put(methodSignature, methodRateLimit);
-
-                // 注册方法QPS和策略
-                rateLimitProvider.updateMethodQps(methodSignature, methodRateLimit.qps());
-                rateLimitProvider.updateMethodStrategy(methodSignature, methodRateLimit.strategy());
-
-                log.info("为方法{}注册限流器: {} QPS, 策略={}", methodSignature,
-                        methodRateLimit.qps(), methodRateLimit.strategy());
-            } else if (classRateLimit != null && classRateLimit.enabled()) {
-                // 应用类级别限流配置到方法
-                rateLimitProvider.updateMethodQps(methodSignature, defaultQpsValue);
-                rateLimitProvider.updateMethodStrategy(methodSignature, classRateLimit.strategy());
-
-                log.info("为方法{}应用类级限流配置: {} QPS, 策略={}", methodSignature,
-                        defaultQpsValue, classRateLimit.strategy());
-            }
-        }
-    }
-
-    /**
-     * 检查方法是否需要限流
-     *
-     * @param methodSignature 方法签名
-     * @return 是否需要限流
-     */
-    public boolean isRateLimited(String methodSignature) {
-        return rateLimitProvider.isRateLimited(methodSignature);
-    }
-
-    /**
-     * 检查请求是否允许通过限流规则
-     * 如果方法不需要限流，始终返回true
-     *
-     * @param methodSignature 方法签名
-     * @return 是否允许请求
-     */
-    public boolean allowRequest(String methodSignature) {
-        // 如果方法不需要限流，直接放行
-        if (!isRateLimited(methodSignature)) {
+    public boolean checkMethodRateLimit(String methodKey) {
+        if (!config.isEnabled()) {
             return true;
         }
 
-        // 否则检查限流规则
-        return rateLimitProvider.getMethodRateLimit(methodSignature).allowRequest();
+        return provider.getMethodLimiter(methodKey).tryAcquire();
     }
 
     /**
-     * 动态更新方法的QPS限制
-     *
-     * @param methodSignature 方法签名
-     * @param newQps          新的QPS限制
+     * 检查接口级限流
+     * 
+     * @param interfaceKey 接口全限定名
+     * @return 是否允许通过
      */
-    public void updateMethodQps(String methodSignature, int newQps) {
-        if (newQps <= 0) {
-            log.warn("无效的QPS值: {}, 方法: {}", newQps, methodSignature);
-            return;
+    public boolean checkInterfaceRateLimit(String interfaceKey) {
+        if (!config.isEnabled()) {
+            return true;
         }
 
-        // 更新方法QPS
-        rateLimitProvider.updateMethodQps(methodSignature, newQps);
-        log.info("更新方法限流QPS: {}, 新值={}", methodSignature, newQps);
+        return provider.getInterfaceLimiter(interfaceKey).tryAcquire();
     }
 
     /**
-     * 获取方法当前实际QPS
+     * 检查服务级限流
+     * 
+     * @return 是否允许通过
      */
-    public double getCurrentMethodQps(String methodSignature) {
-        return rateLimitProvider.getMethodRateLimit(methodSignature).getCurrentQps();
+    public boolean checkServiceRateLimit() {
+        if (!config.isEnabled()) {
+            return true;
+        }
+
+        return provider.getServiceLimiter().tryAcquire();
     }
 
     /**
-     * 获取方法最大QPS限制
+     * 检查IP级限流
+     * 
+     * @param ip 客户端IP地址
+     * @return 是否允许通过
      */
-    public int getMethodMaxQps(String methodSignature) {
-        return rateLimitProvider.getMethodRateLimit(methodSignature).getMaxQps();
+    public boolean checkIpRateLimit(String ip) {
+        if (!config.isEnabled()) {
+            return true;
+        }
+
+        return provider.getIpLimiter(ip).tryAcquire();
+    }
+
+    /**
+     * 配置方法限流参数
+     * 
+     * @param methodKey 方法全限定名
+     * @param qps       QPS限制
+     * @param strategy  限流策略
+     */
+    public void configureMethodRateLimit(String methodKey, int qps, Strategy strategy) {
+        config.getMethodQpsConfig().put(methodKey, qps);
+        config.getMethodStrategyConfig().put(methodKey, strategy);
+
+        log.info("设置方法限流配置: 方法={}, QPS={}, 策略={}", methodKey, qps, strategy);
+    }
+
+    /**
+     * 配置接口限流参数
+     * 
+     * @param interfaceKey 接口全限定名
+     * @param qps          QPS限制
+     * @param strategy     限流策略
+     */
+    public void configureInterfaceRateLimit(String interfaceKey, int qps, Strategy strategy) {
+        config.getInterfaceQpsConfig().put(interfaceKey, qps);
+        config.getInterfaceStrategyConfig().put(interfaceKey, strategy);
+
+        log.info("设置接口限流配置: 接口={}, QPS={}, 策略={}", interfaceKey, qps, strategy);
+    }
+
+    /**
+     * 重置所有统计数据
+     */
+    private void resetAllStatistics() {
+        if (log.isDebugEnabled()) {
+            log.debug("定时重置所有限流器统计数据");
+        }
+
+        // 实际的重置操作（如果需要的话）
+    }
+
+    /**
+     * 关闭限流管理器
+     */
+    public void shutdown() {
+        scheduler.shutdown();
+        try {
+            if (!scheduler.awaitTermination(5, TimeUnit.SECONDS)) {
+                scheduler.shutdownNow();
+            }
+        } catch (InterruptedException e) {
+            scheduler.shutdownNow();
+            Thread.currentThread().interrupt();
+        }
+
+        provider.clearAll();
+        log.info("限流管理器已关闭");
     }
 }

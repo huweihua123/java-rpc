@@ -3,11 +3,11 @@
  * @Date: 2025-04-10 01:51:39
  * @LastEditTime: 2025-04-15 00:18:10
  * @LastEditors: weihua hu
- * @Description: 
+ * @Description:
  */
 package com.weihua.rpc.core.client.config;
 
-import com.weihua.rpc.core.client.pool.InvokerManager.ConnectionMode;
+import com.weihua.rpc.core.client.invoker.InvokerManager.ConnectionMode;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
@@ -59,15 +59,11 @@ public class ClientConfig {
 
     // 熔断器配置
     private boolean circuitBreakerEnable = true;
-
-    // 接口特定配置
-    // private transient InterfaceConfigCache interfaceConfigCache;
-
     @PostConstruct
     public void init() {
         // 更新日志输出，包含配置信息
         log.info("已加载客户端配置: 超时={}ms, 连接超时={}ms, 请求超时={}ms, 最大连接数={}, 初始连接数={}, " +
-                "重试={}(退避策略: 乘数={}, 最大时间={}ms, 随机抖动={}), 连接模式={}, 熔断器={}",
+                        "重试={}(退避策略: 乘数={}, 最大时间={}ms, 随机抖动={}), 连接模式={}, 熔断器={}",
                 timeout, connectTimeout, requestTimeout,
                 maxConnectionsPerAddress, initConnectionsPerAddress,
                 retryEnable ? "启用(最大" + maxRetryAttempts + "次)" : "禁用",
@@ -76,30 +72,4 @@ public class ClientConfig {
                 circuitBreakerEnable ? "启用" : "禁用");
     }
 
-    /**
-     * 获取特定接口的请求超时时间(秒)
-     */
-    // public int getInterfaceRequestTimeout(String interfaceName) {
-    // if (interfaceConfigCache != null) {
-    // return interfaceConfigCache.getRequestTimeout(interfaceName, requestTimeout);
-    // }
-    // return requestTimeout;
-    // }
-
-    /**
-     * 获取特定接口的最大重试次数
-     */
-    // public int getInterfaceMaxRetries(String interfaceName) {
-    // if (interfaceConfigCache != null) {
-    // return interfaceConfigCache.getMaxRetries(interfaceName, maxRetryAttempts);
-    // }
-    // return maxRetryAttempts;
-    // }
-
-    /**
-     * 设置接口配置缓存
-     */
-    // public void setInterfaceConfigCache(InterfaceConfigCache cache) {
-    // this.interfaceConfigCache = cache;
-    // }
 }

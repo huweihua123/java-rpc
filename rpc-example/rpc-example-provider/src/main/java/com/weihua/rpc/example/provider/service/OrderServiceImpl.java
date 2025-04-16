@@ -86,7 +86,7 @@ public class OrderServiceImpl implements OrderService {
     }
 
     @Override
-    @RateLimit(qps = 20000) // 查询接口QPS中等
+    @RateLimit(qps = 2) // 查询接口QPS中等
     public List<Order> getOrdersByUserId(Long userId) {
         log.info("获取用户订单: userId={}", userId);
         return orderMap.values().stream()

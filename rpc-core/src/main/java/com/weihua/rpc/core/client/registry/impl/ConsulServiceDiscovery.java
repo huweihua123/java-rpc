@@ -287,19 +287,6 @@ public class ConsulServiceDiscovery extends AbstractServiceDiscovery {
         }
     }
 
-    /**
-     * 解析地址字符串
-     */
-    private InetSocketAddress parseAddress(String address) {
-        try {
-            String[] parts = address.split(":");
-            return new InetSocketAddress(parts[0], Integer.parseInt(parts[1]));
-        } catch (Exception e) {
-            log.error("解析地址失败: {}", address, e);
-            return null;
-        }
-    }
-
     @Override
     public boolean isMethodRetryable(String methodSignature) {
         // 从缓存查询是否可重试

@@ -1,7 +1,7 @@
 /*
  * @Author: weihua hu
  * @Date: 2025-04-10 02:32:46
- * @LastEditTime: 2025-04-15 18:43:23
+ * @LastEditTime: 2025-04-16 22:13:28
  * @LastEditors: weihua hu
  * @Description: 
  */
@@ -13,13 +13,15 @@ import com.weihua.rpc.core.client.circuit.CircuitBreakerProvider;
 import com.weihua.rpc.core.client.config.ClientConfig;
 import com.weihua.rpc.core.client.config.DiscoveryConfig;
 import com.weihua.rpc.core.client.netty.NettyRpcClient;
-import com.weihua.rpc.core.client.pool.InvokerManager;
+import com.weihua.rpc.core.client.invoker.InvokerManager;
 import com.weihua.rpc.core.client.proxy.ClientProxyFactory;
 import com.weihua.rpc.core.client.registry.ServiceDiscovery;
 import com.weihua.rpc.core.client.registry.ServiceDiscoveryFactory;
 import com.weihua.rpc.core.client.registry.balance.LoadBalance;
 import com.weihua.rpc.core.client.registry.balance.LoadBalanceFactory;
 
+import com.weihua.rpc.core.client.retry.DefaultRetryPolicy;
+import com.weihua.rpc.core.client.retry.RetryPolicy;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -54,6 +56,11 @@ public class RpcClientConfiguration {
     @ConditionalOnMissingBean
     public ServiceAddressCache serviceAddressCache() {
         return new DefaultServiceAddressCache();
+    }
+
+    @Bean
+    public RetryPolicy retryPolicy(ClientConfig clientConfig) {
+        return new DefaultRetryPolicy(clientConfig);
     }
 
     /**

@@ -3,7 +3,7 @@
  * @Date: 2025-04-15 01:24:29
  * @LastEditTime: 2025-04-15 02:33:21
  * @LastEditors: weihua hu
- * @Description: 
+ * @Description:
  */
 package com.weihua.rpc.springboot.configurer;
 
@@ -28,8 +28,7 @@ public class ClientConfigurer {
 
     @Bean
     public ClientConfig clientConfig(
-            RpcClientProperties properties,
-            CircuitBreakerProperties circuitBreakerProperties) {
+            RpcClientProperties properties) {
 
         ClientConfig config = new ClientConfig();
 
@@ -44,7 +43,7 @@ public class ClientConfigurer {
 
         // 重试配置
         config.setRetryEnable(properties.isRetryEnable());
-        config.setMaxRetryAttempts(properties.getRetries());
+        config.setMaxRetryAttempts(properties.getMaxRetries());
         config.setRetryIntervalMillis(properties.getRetryInterval());
         config.setRetryOnlyIdempotent(properties.isRetryOnlyIdempotent());
 

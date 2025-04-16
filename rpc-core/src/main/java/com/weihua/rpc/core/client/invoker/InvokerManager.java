@@ -1,9 +1,7 @@
-package com.weihua.rpc.core.client.pool;
+package com.weihua.rpc.core.client.invoker;
 
 import com.weihua.rpc.core.client.cache.ServiceAddressCache;
 import com.weihua.rpc.core.client.config.ClientConfig;
-import com.weihua.rpc.core.client.invoker.ChannelInvoker;
-import com.weihua.rpc.core.client.invoker.Invoker;
 import com.weihua.rpc.core.client.netty.NettyRpcClient;
 import io.netty.bootstrap.Bootstrap;
 import io.netty.channel.Channel;
@@ -601,7 +599,6 @@ public class InvokerManager {
                 if (status != null && status.confirmedDown) {
                     continue; // 跳过已确认下线的服务
                 }
-                // log.info("connectMode: {}", connectionMode);
                 // 获取或创建Invoker
                 if (connectionMode == ConnectionMode.EAGER) {
                     // log.info("使用EAGER模式获取Invoker: {}:{}", address.getHostString(),

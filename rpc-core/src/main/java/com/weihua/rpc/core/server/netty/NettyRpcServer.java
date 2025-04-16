@@ -41,13 +41,13 @@ public class NettyRpcServer implements RpcServer {
     /**
      * 构造函数，使用构造器注入依赖
      * 
-     * @param serverConfig 服务器配置
+     * @param serverConfig    服务器配置
      * @param serviceProvider 服务提供者
      */
     public NettyRpcServer(ServerConfig serverConfig, ServiceProvider serviceProvider) {
         this.serverConfig = serverConfig;
         this.serviceProvider = serviceProvider;
-        log.info("NettyRpcServer已创建，配置：host={}，port={}", 
+        log.info("NettyRpcServer已创建，配置：host={}，port={}",
                 serverConfig.getHost(), serverConfig.getPort());
     }
 

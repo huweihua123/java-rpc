@@ -1,104 +1,134 @@
+/*
+ * @Author: weihua hu
+ * @Date: 2025-04-15 05:25:14
+ * @LastEditTime: 2025-04-15 17:00:00
+ * @LastEditors: weihua hu
+ * @Description: 
+ */
 package com.weihua.rpc.core.server.ratelimit;
 
-import com.weihua.rpc.core.server.annotation.RateLimitStrategy;
+import com.weihua.rpc.common.extension.ExtensionLoader;
+import com.weihua.rpc.core.server.annotation.RateLimit.Strategy;
+import com.weihua.rpc.core.server.config.RateLimitConfig;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Component;
 
-import javax.annotation.PostConstruct;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * 限流提供者，提供限流算法和限流检查
+ * 限流器提供者，负责创建、缓存和获取限流器实例
  */
 @Slf4j
-@Component
 public class RateLimitProvider {
 
-    // 配置信息
     private final RateLimitConfig config;
 
-    // 方法维度的限流器缓存
-    private final Map<String, AbstractRateLimiter> methodRateLimiters = new ConcurrentHashMap<>();
-    // 方法限流策略缓存
-    private final Map<String, RateLimitStrategy> methodStrategies = new ConcurrentHashMap<>();
+    /**
+     * 方法级限流器缓存
+     * key: 方法全限定名 (接口名.方法名)
+     * value: 限流器实例
+     */
+    private final Map<String, RateLimit> methodLimiterCache = new ConcurrentHashMap<>();
+
+    /**
+     * 接口级限流器缓存
+     * key: 接口全限定名
+     * value: 限流器实例
+     */
+    private final Map<String, RateLimit> interfaceLimiterCache = new ConcurrentHashMap<>();
+
+    /**
+     * 服务级限流器
+     */
+    private volatile RateLimit serviceLimiter;
+
+    /**
+     * IP级限流器缓存
+     * key: IP地址
+     * value: 限流器实例
+     */
+    private final Map<String, RateLimit> ipLimiterCache = new ConcurrentHashMap<>();
 
     public RateLimitProvider(RateLimitConfig config) {
         this.config = config;
     }
 
-    @PostConstruct
-    public void init() {
-        log.info("限流提供者初始化完成, 默认策略: {}", config.getDefaultStrategy());
-    }
-
     /**
-     * 获取方法限流器，如果不存在则创建
+     * 获取方法级限流器
      */
-    public AbstractRateLimiter getMethodRateLimit(String methodSignature) {
-        return methodRateLimiters.computeIfAbsent(methodSignature, key -> {
-            // 使用方法的特定策略或默认策略创建限流器
-            RateLimitStrategy strategy = methodStrategies.getOrDefault(key, config.getDefaultStrategy());
-
-            // 创建默认QPS的限流器
-            AbstractRateLimiter limiter = createRateLimiter(strategy, config.getDefaultQps());
-            log.debug("为方法{}创建限流器: 策略={}, 默认QPS={}",
-                    key, strategy, config.getDefaultQps());
-            return limiter;
+    public RateLimit getMethodLimiter(String methodKey) {
+        return methodLimiterCache.computeIfAbsent(methodKey, key -> {
+            int qps = config.getMethodQpsConfig().getOrDefault(key, config.getDefaultQps());
+            Strategy strategy = config.getMethodStrategyConfig().getOrDefault(key, config.getDefaultStrategy());
+            return createRateLimiter(strategy, qps);
         });
     }
 
     /**
-     * 创建指定策略的限流器
+     * 获取接口级限流器
      */
-    private AbstractRateLimiter createRateLimiter(RateLimitStrategy strategy, int qps) {
-        switch (strategy) {
-            case SLIDING_WINDOW:
-                return new SlidingWindowRateLimiter(qps);
-            case TOKEN_BUCKET:
-                return new TokenBucketRateLimiter(qps);
-            case LEAKY_BUCKET:
-                return new LeakyBucketRateLimiter(qps);
-            default:
-                log.warn("未知限流策略 {}, 使用令牌桶作为默认策略", strategy);
-                return new TokenBucketRateLimiter(qps);
+    public RateLimit getInterfaceLimiter(String interfaceKey) {
+        return interfaceLimiterCache.computeIfAbsent(interfaceKey, key -> {
+            int qps = config.getInterfaceQpsConfig().getOrDefault(key, config.getDefaultQps());
+            Strategy strategy = config.getInterfaceStrategyConfig().getOrDefault(key, config.getDefaultStrategy());
+            return createRateLimiter(strategy, qps);
+        });
+    }
+
+    /**
+     * 获取服务级限流器
+     */
+    public RateLimit getServiceLimiter() {
+        if (serviceLimiter == null) {
+            synchronized (this) {
+                if (serviceLimiter == null) {
+                    serviceLimiter = createRateLimiter(config.getDefaultStrategy(), config.getMaxServiceQps());
+                }
+            }
+        }
+        return serviceLimiter;
+    }
+
+    /**
+     * 获取IP级限流器
+     */
+    public RateLimit getIpLimiter(String ip) {
+        return ipLimiterCache.computeIfAbsent(ip,
+                key -> createRateLimiter(config.getDefaultStrategy(), config.getMaxIpQps()));
+    }
+
+    /**
+     * 创建限流器实例，使用SPI机制
+     */
+    private RateLimit createRateLimiter(Strategy strategy, int qps) {
+        String extensionName = strategy.name().toLowerCase();
+
+        try {
+            // 通过SPI机制加载对应的限流器实现
+            RateLimit limiter = ExtensionLoader.getExtensionLoader(RateLimit.class)
+                    .getExtension(extensionName);
+
+            // 如果是新创建的实例，需要设置QPS
+            if (limiter.getQps() != qps) {
+                limiter.updateQps(qps);
+            }
+
+            return limiter;
+        } catch (Exception e) {
+            // SPI加载失败，回退到工厂模式创建
+            log.warn("通过SPI加载限流器失败: {}, 回退到默认工厂模式", e.getMessage());
+            return RateLimitFactory.create(strategy, qps, config.getBurstCapacity());
         }
     }
 
     /**
-     * 更新方法的QPS限制
+     * 清除所有缓存的限流器
      */
-    public void updateMethodQps(String methodSignature, int newQps) {
-        // 获取现有限流器或创建新的
-        AbstractRateLimiter limiter = getMethodRateLimit(methodSignature);
-        // 更新QPS
-        limiter.updateQps(newQps);
-        log.debug("更新方法{}的QPS限制为: {}", methodSignature, newQps);
-    }
-
-    /**
-     * 更新方法的限流策略
-     */
-    public void updateMethodStrategy(String methodSignature, RateLimitStrategy strategy) {
-        // 保存方法策略
-        methodStrategies.put(methodSignature, strategy);
-
-        // 如果已经有限流器，需要替换为新策略的限流器
-        if (methodRateLimiters.containsKey(methodSignature)) {
-            AbstractRateLimiter oldLimiter = methodRateLimiters.get(methodSignature);
-            int currentQps = oldLimiter.getMaxQps();
-
-            // 创建新策略的限流器并替换
-            AbstractRateLimiter newLimiter = createRateLimiter(strategy, currentQps);
-            methodRateLimiters.put(methodSignature, newLimiter);
-            log.info("为方法{}更新限流策略为: {}", methodSignature, strategy);
-        }
-    }
-
-    /**
-     * 检查方法是否配置了限流
-     */
-    public boolean isRateLimited(String methodSignature) {
-        return methodRateLimiters.containsKey(methodSignature);
+    public void clearAll() {
+        methodLimiterCache.clear();
+        interfaceLimiterCache.clear();
+        ipLimiterCache.clear();
+        serviceLimiter = null;
+        log.info("已清除所有限流器缓存");
     }
 }

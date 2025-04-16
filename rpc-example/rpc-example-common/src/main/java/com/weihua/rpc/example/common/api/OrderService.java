@@ -1,13 +1,12 @@
 /*
  * @Author: weihua hu
  * @Date: 2025-04-10 15:03:44
- * @LastEditTime: 2025-04-12 17:09:59
+ * @LastEditTime: 2025-04-16 20:28:53
  * @LastEditors: weihua hu
  * @Description: 
  */
 package com.weihua.rpc.example.common.api;
 
-import com.weihua.rpc.core.server.annotation.RateLimit;
 import com.weihua.rpc.core.server.annotation.Retryable;
 import com.weihua.rpc.example.common.model.Order;
 

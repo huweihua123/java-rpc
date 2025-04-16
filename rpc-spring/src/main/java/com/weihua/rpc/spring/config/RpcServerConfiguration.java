@@ -47,19 +47,6 @@ public class RpcServerConfiguration {
     }
 
     /**
-     * 使用构造器注入
-     * 
-     * @param rpcServer    RPC服务器
-     * @param serverConfig 服务器配置
-     */
-    // public RpcServerConfiguration(RpcServer rpcServer, ServerConfig serverConfig)
-    // {
-    // this.rpcServer = rpcServer;
-    // this.serverConfig = serverConfig;
-    // log.info("RPC服务端配置已初始化");
-    // }
-
-    /**
      * 限流提供者
      */
     @Bean
@@ -73,8 +60,8 @@ public class RpcServerConfiguration {
      */
     @Bean
     @ConditionalOnMissingBean
-    public RateLimitManager rateLimitManager() {
-        return new RateLimitManager();
+    public RateLimitManager rateLimitManager(RateLimitConfig rateLimitConfig) {
+        return new RateLimitManager(rateLimitConfig);
     }
 
     /**

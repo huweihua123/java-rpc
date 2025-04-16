@@ -3,7 +3,7 @@ package com.weihua.rpc.core.client.registry;
 import com.weihua.rpc.common.extension.ExtensionLoader;
 import com.weihua.rpc.core.client.cache.ServiceAddressCache;
 import com.weihua.rpc.core.client.config.DiscoveryConfig;
-import com.weihua.rpc.core.client.pool.InvokerManager;
+import com.weihua.rpc.core.client.invoker.InvokerManager;
 import lombok.extern.slf4j.Slf4j;
 
 /**

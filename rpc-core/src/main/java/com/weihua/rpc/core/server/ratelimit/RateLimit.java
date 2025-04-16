@@ -1,42 +1,65 @@
 /*
  * @Author: weihua hu
- * @Date: 2025-04-10 02:21:18
- * @LastEditTime: 2025-04-12 18:33:13
+ * @Date: 2025-04-15 05:25:14
+ * @LastEditTime: 2025-04-15 16:50:00
  * @LastEditors: weihua hu
  * @Description: 
  */
 package com.weihua.rpc.core.server.ratelimit;
 
+import com.weihua.rpc.common.extension.SPI;
+import com.weihua.rpc.core.server.annotation.RateLimit.Strategy;
+
 /**
- * 限流接口
+ * 限流器接口，支持SPI扩展
  */
+@SPI("tokenBucket")
 public interface RateLimit {
 
     /**
-     * 尝试获取一个令牌，判断当前请求是否允许通过
+     * 尝试获取一个请求的执行权限
      * 
-     * @return 如果允许请求通过返回true，否则返回false
+     * @return 是否允许请求通过
      */
-    boolean allowRequest();
+    boolean tryAcquire();
 
     /**
-     * 获取接口名称
+     * 获取总请求数
      * 
-     * @return 接口名称
+     * @return 请求计数
      */
-    String getInterfaceName();
+    long getRequestCount();
 
     /**
-     * 获取最大QPS
+     * 获取被拒绝的请求数
      * 
-     * @return 最大QPS
+     * @return 拒绝计数
      */
-    int getMaxQps();
+    long getRejectCount();
 
     /**
-     * 获取当前QPS
-     * 
-     * @return 当前QPS
+     * 重置统计数据
      */
-    double getCurrentQps();
+    void resetStatistics();
+
+    /**
+     * 更新QPS限制
+     * 
+     * @param qps 新的QPS值
+     */
+    void updateQps(int qps);
+
+    /**
+     * 获取当前QPS配置
+     * 
+     * @return 当前QPS值
+     */
+    int getQps();
+
+    /**
+     * 获取当前使用的限流策略
+     * 
+     * @return 限流策略
+     */
+    Strategy getStrategy();
 }

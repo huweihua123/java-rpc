@@ -7,7 +7,7 @@
  */
 package com.weihua.rpc.springboot.properties;
 
-import com.weihua.rpc.core.client.pool.InvokerManager.ConnectionMode;
+import com.weihua.rpc.core.client.invoker.InvokerManager.ConnectionMode;
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
@@ -49,7 +49,7 @@ public class RpcClientProperties {
     /**
      * 最大重试次数
      */
-    private int retries = 2;
+    private int maxRetries = 2;
 
     /**
      * 是否启用重试

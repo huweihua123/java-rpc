@@ -1,11 +1,11 @@
 /*
  * @Author: weihua hu
  * @Date: 2025-04-15 05:25:14
- * @LastEditTime: 2025-04-15 16:55:00
+ * @LastEditTime: 2025-04-16 14:14:57
  * @LastEditors: weihua hu
  * @Description: 
  */
-package com.weihua.rpc.core.server.ratelimit;
+package com.weihua.rpc.core.server.ratelimit.impl;
 
 import com.weihua.rpc.core.server.annotation.RateLimit.Strategy;
 import lombok.extern.slf4j.Slf4j;
