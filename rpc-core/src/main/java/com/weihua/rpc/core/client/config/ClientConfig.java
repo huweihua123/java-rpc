@@ -27,7 +27,7 @@ public class ClientConfig {
 
     // 网络连接配置
     private int connectTimeout = 5000;
-    private int requestTimeout = 10000;
+    private int requestTimeout = 300000;
     private int maxConnectionsPerAddress = 4;
     private int initConnectionsPerAddress = 1;
 
