@@ -1,7 +1,7 @@
 /*
  * @Author: weihua hu
  * @Date: 2025-04-10 02:35:53
- * @LastEditTime: 2025-04-15 02:32:52
+ * @LastEditTime: 2025-04-22 18:19:50
  * @LastEditors: weihua hu
  * @Description: 
  */
@@ -11,6 +11,7 @@ import com.weihua.rpc.core.client.invoker.InvokerManager.ConnectionMode;
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
+import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -22,25 +23,20 @@ import java.util.Map;
 public class RpcClientProperties {
 
     /**
-     * 默认请求超时时间（毫秒）
+     * 默认请求超时时间
      */
-    private int timeout = 3000;
+    private Duration timeout = Duration.ofSeconds(3);
 
     /**
-     * 连接超时时间（毫秒）
+     * 连接超时时间
      */
-    private int connectTimeout = 5000;
+    private Duration connectTimeout = Duration.ofSeconds(5);
 
     /**
-     * 请求处理超时时间（毫秒）
+     * 请求处理超时时间
      */
-    private int requestTimeout = 10000;
-    
-    /**
-     * 每个地址的最大连接数（目前仅支持1）
-     */
-    private int maxConnectionsPerAddress = 1;
-    
+    private Duration requestTimeout = Duration.ofSeconds(10);
+
     /**
      * 每个地址的初始连接数（目前仅支持0或1）
      */
@@ -57,53 +53,53 @@ public class RpcClientProperties {
     private boolean retryEnable = true;
 
     /**
-     * 重试间隔（毫秒）
+     * 重试间隔
      */
-    private int retryInterval = 1000;
-    
+    private Duration retryInterval = Duration.ofSeconds(1);
+
     /**
      * 是否只对幂等请求进行重试
      */
     private boolean retryOnlyIdempotent = true;
-    
+
     /**
      * 指数退避乘数
      * 每次重试后等待时间的增长倍数
      */
     private double backoffMultiplier = 2.0;
-    
+
     /**
-     * 最大退避时间（毫秒）
+     * 最大退避时间
      */
-    private int maxBackoffTime = 30000;
-    
+    private Duration maxBackoffTime = Duration.ofSeconds(30);
+
     /**
      * 是否添加随机抖动
      * 防止多个客户端同时重试导致的"惊群效应"
      */
     private boolean addJitter = true;
-    
+
     /**
-     * 最小重试间隔（毫秒）
+     * 最小重试间隔
      */
-    private int minRetryInterval = 500;
-    
+    private Duration minRetryInterval = Duration.ofMillis(500);
+
     /**
      * 连接模式
      * LAZY: 懒加载，首次使用时创建连接
      * EAGER: 预加载，发现地址后立即创建连接
      */
     private ConnectionMode connectionMode = ConnectionMode.LAZY;
-    
+
     /**
-     * 心跳间隔（秒）
+     * 心跳间隔
      */
-    private int heartbeatInterval = 30;
-    
+    private Duration heartbeatInterval = Duration.ofSeconds(30);
+
     /**
-     * 心跳超时（秒）
+     * 心跳超时
      */
-    private int heartbeatTimeout = 5;
+    private Duration heartbeatTimeout = Duration.ofSeconds(5);
 
     /**
      * 负载均衡策略：random, roundrobin, leastactive, consistenthash
@@ -129,7 +125,7 @@ public class RpcClientProperties {
      * 是否启用熔断器
      */
     private boolean circuitBreakerEnable = true;
-    
+
     /**
      * 接口特定配置
      */
@@ -141,20 +137,20 @@ public class RpcClientProperties {
     @Data
     public static class InterfaceConfig {
         /**
-         * 超时时间（毫秒）
+         * 超时时间
          */
-        private Integer timeout;
-        
+        private Duration timeout;
+
         /**
          * 最大重试次数
          */
         private Integer retries;
-        
+
         /**
          * 负载均衡策略
          */
         private String loadBalance;
-        
+
         /**
          * 是否启用熔断器
          */

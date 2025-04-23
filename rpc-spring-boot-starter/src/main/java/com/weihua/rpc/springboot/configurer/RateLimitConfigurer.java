@@ -1,7 +1,7 @@
 /*
  * @Author: weihua hu
  * @Date: 2025-04-15 05:30:48
- * @LastEditTime: 2025-04-15 15:26:28
+ * @LastEditTime: 2025-04-23 16:19:28
  * @LastEditors: weihua hu
  * @Description: 
  */
@@ -41,6 +41,12 @@ public class RateLimitConfigurer {
         config.setMaxServiceQps(properties.getMaxServiceQps());
         config.setMaxIpQps(properties.getMaxIpQps());
         config.setBurstCapacity(properties.getBurstCapacity());
+
+        // 设置时间相关的Duration字段
+        config.setTokenRefillInterval(properties.getTokenRefillInterval());
+        config.setSlidingWindowSize(properties.getSlidingWindowSize());
+        config.setStatsRefreshInterval(properties.getStatsRefreshInterval());
+        config.setLimitingRecoveryTime(properties.getLimitingRecoveryTime());
 
         // 接口级别配置
         Map<String, Integer> interfaceQpsMap = new HashMap<>();

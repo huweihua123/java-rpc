@@ -1,7 +1,7 @@
 /*
  * @Author: weihua hu
  * @Date: 2025-04-15 05:25:14
- * @LastEditTime: 2025-04-16 14:40:00
+ * @LastEditTime: 2025-04-23 15:49:27
  * @LastEditors: weihua hu
  * @Description: 
  */
@@ -10,6 +10,7 @@ package com.weihua.rpc.core.server.ratelimit.impl;
 import com.weihua.rpc.core.server.annotation.RateLimit.Strategy;
 import lombok.extern.slf4j.Slf4j;
 
+import java.time.Duration;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.Lock;
@@ -24,8 +25,8 @@ public class SlidingWindowRateLimit extends AbstractRateLimiter {
     // 滑动窗口大小 (10个子窗口组成1秒)
     private static final int WINDOW_COUNT = 10;
 
-    // 窗口大小 (ms)
-    private static final int WINDOW_SIZE_MS = 1000 / WINDOW_COUNT;
+    // 窗口大小
+    private static final Duration WINDOW_SIZE = Duration.ofMillis(1000 / WINDOW_COUNT);
 
     // 单个窗口最大请求数
     private final int maxRequestsPerWindow;
@@ -87,11 +88,11 @@ public class SlidingWindowRateLimit extends AbstractRateLimiter {
         long last = lastResetTime.get();
 
         // 计算经过的窗口数
-        long elapsedWindows = (current - last) / WINDOW_SIZE_MS;
+        long elapsedWindows = Duration.ofMillis(current - last).toMillis() / WINDOW_SIZE.toMillis();
 
         if (elapsedWindows > 0) {
             // CAS更新上次重置时间
-            if (lastResetTime.compareAndSet(last, last + elapsedWindows * WINDOW_SIZE_MS)) {
+            if (lastResetTime.compareAndSet(last, last + elapsedWindows * WINDOW_SIZE.toMillis())) {
                 // 滑动窗口，最多滑动WINDOW_COUNT个窗口
                 int windowsToSlide = (int) Math.min(elapsedWindows, WINDOW_COUNT);
 

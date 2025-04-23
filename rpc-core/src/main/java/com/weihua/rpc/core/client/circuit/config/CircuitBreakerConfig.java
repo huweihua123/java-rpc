@@ -1,14 +1,7 @@
 /*
  * @Author: weihua hu
  * @Date: 2025-04-15 02:06:43
- * @LastEditTime: 2025-04-15 02:06:45
- * @LastEditors: weihua hu
- * @Description: 
- */
-/*
- * @Author: weihua hu
- * @Date: 2025-04-10 01:59:51
- * @LastEditTime: 2025-04-15 03:40:21
+ * @LastEditTime: 2025-04-23 15:43:19
  * @LastEditors: weihua hu
  * @Description: 
  */
@@ -16,6 +9,8 @@ package com.weihua.rpc.core.client.circuit.config;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.env.Environment;
+
+import java.time.Duration;
 
 /**
  * 熔断器配置
@@ -28,7 +23,7 @@ public class CircuitBreakerConfig {
     // 全局默认配置
     private int failureThreshold;
     private double successRateThreshold;
-    private long resetTimeoutMs;
+    private Duration resetTimeout;
     private int halfOpenMaxRequests;
 
     // 配置前缀
@@ -40,22 +35,22 @@ public class CircuitBreakerConfig {
      * @param environment          Spring环境，用于获取特定接口配置
      * @param failureThreshold     失败阈值
      * @param successRateThreshold 成功率阈值（百分比，0-100）
-     * @param resetTimeoutMs       重置超时（毫秒）
+     * @param resetTimeout         重置超时
      * @param halfOpenMaxRequests  半开状态最大请求数
      */
     public CircuitBreakerConfig(Environment environment,
             int failureThreshold,
             double successRateThreshold,
-            long resetTimeoutMs,
+            Duration resetTimeout,
             int halfOpenMaxRequests) {
         this.environment = environment;
         this.failureThreshold = failureThreshold;
         this.successRateThreshold = successRateThreshold / 100.0; // 转换为0-1之间的比率
-        this.resetTimeoutMs = resetTimeoutMs;
+        this.resetTimeout = resetTimeout;
         this.halfOpenMaxRequests = halfOpenMaxRequests;
 
-        log.info("熔断器配置初始化: 失败阈值={}, 成功率阈值={}%, 重置超时={}ms, 半开最大请求={}",
-                failureThreshold, this.successRateThreshold * 100, resetTimeoutMs, halfOpenMaxRequests);
+        log.info("熔断器配置初始化: 失败阈值={}, 成功率阈值={}%, 重置超时={}, 半开最大请求={}",
+                failureThreshold, this.successRateThreshold * 100, resetTimeout, halfOpenMaxRequests);
     }
 
     /**
@@ -81,9 +76,18 @@ public class CircuitBreakerConfig {
     /**
      * 获取重置超时
      */
+    public Duration getResetTimeout(String interfaceName) {
+        String key = INTERFACE_CONFIG_PREFIX + interfaceName + ".reset.timeout";
+        return environment.getProperty(key, Duration.class, resetTimeout);
+    }
+
+    /**
+     * 获取重置超时（毫秒）
+     * @deprecated 使用 {@link #getResetTimeout(String)} 替代
+     */
+    @Deprecated
     public long getResetTimeoutMs(String interfaceName) {
-        String key = INTERFACE_CONFIG_PREFIX + interfaceName + ".reset.timeout.ms";
-        return environment.getProperty(key, Long.class, resetTimeoutMs);
+        return getResetTimeout(interfaceName).toMillis();
     }
 
     /**

@@ -36,7 +36,7 @@ public class NettyRpcClient {
 
     /**
      * 构造函数，接收所需依赖
-     * 
+     *
      * @param clientConfig  客户端配置
      * @param serviceCenter 服务发现中心
      * @param loadBalance   负载均衡策略
@@ -58,7 +58,7 @@ public class NettyRpcClient {
         this.bootstrap.group(eventLoopGroup)
                 .channel(NioSocketChannel.class)
                 .handler(new NettyClientInitializer())
-                .option(io.netty.channel.ChannelOption.CONNECT_TIMEOUT_MILLIS, clientConfig.getConnectTimeout())
+                .option(io.netty.channel.ChannelOption.CONNECT_TIMEOUT_MILLIS, (int) clientConfig.getConnectTimeout().toMillis())
                 .option(io.netty.channel.ChannelOption.SO_KEEPALIVE, true)
                 .option(io.netty.channel.ChannelOption.TCP_NODELAY, true);
 
@@ -103,7 +103,7 @@ public class NettyRpcClient {
             // 发送请求并等待结果
             try {
                 RpcResponse response = selectedInvoker.invoke(request)
-                        .get(clientConfig.getRequestTimeout(), TimeUnit.SECONDS);
+                        .get(clientConfig.getRequestTimeout().toSeconds(), TimeUnit.SECONDS);
 
                 // 请求成功
                 success = (response != null && response.getCode() == 200);

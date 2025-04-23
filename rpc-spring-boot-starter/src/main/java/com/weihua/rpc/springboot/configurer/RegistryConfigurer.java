@@ -3,7 +3,7 @@
  * @Date: 2025-04-15 01:30:52
  * @LastEditTime: 2025-04-15 01:50:55
  * @LastEditors: weihua hu
- * @Description: 
+ * @Description:
  */
 package com.weihua.rpc.springboot.configurer;
 
@@ -25,7 +25,7 @@ public class RegistryConfigurer {
 
     /**
      * 创建注册中心配置对象并绑定属性
-     * 
+     *
      * @param properties 配置属性
      * @return 注册中心配置对象
      */
@@ -38,30 +38,16 @@ public class RegistryConfigurer {
         config.setAddress(properties.getAddress());
         config.setConnectTimeout(properties.getConnectTimeout());
 
-        // 设置其他属性，可以根据需要从properties扩展
-        if (properties.getTimeout() > 0) {
-            config.setTimeout(properties.getTimeout());
-        }
+        config.setTimeout(properties.getTimeout());
 
-        if (properties.getRetryTimes() > 0) {
-            config.setRetryTimes(properties.getRetryTimes());
-        }
+        config.setRetryTimes(properties.getRetryTimes());
 
-        if (properties.getHealthCheckPeriod() > 0) {
-            config.setHealthCheckPeriod(properties.getHealthCheckPeriod());
-        }
+        config.setHealthCheckPeriod(properties.getHealthCheckPeriod());
 
-        if (properties.getCheckInterval() > 0) {
-            config.setCheckInterval(properties.getCheckInterval());
-        }
+        config.setCheckInterval(properties.getCheckInterval());
+        config.setCheckTimeout(properties.getCheckTimeout());
 
-        if (properties.getCheckTimeout() > 0) {
-            config.setCheckTimeout(properties.getCheckTimeout());
-        }
-
-        if (properties.getDeregisterTime() != null && !properties.getDeregisterTime().isEmpty()) {
-            config.setDeregisterTime(properties.getDeregisterTime());
-        }
+        config.setDeregisterTime(properties.getDeregisterTime());
 
         return config;
     }

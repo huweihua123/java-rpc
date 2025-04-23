@@ -194,7 +194,7 @@ public class ClientProxyFactory {
             executeWithRetry(request, 0, maxRetries, future);
 
             // 等待结果
-            return future.get(clientConfig.getRequestTimeout(), TimeUnit.SECONDS);
+            return future.get(clientConfig.getRequestTimeout().toMillis(), TimeUnit.MILLISECONDS);
         }
 
         /**
@@ -216,7 +216,7 @@ public class ClientProxyFactory {
                     log.warn("请求失败，准备第{}次重试", currentRetry + 1);
 
                     // 延迟后重试
-                    long retryDelay = clientConfig.getRetryIntervalMillis();
+                    long retryDelay = (int) clientConfig.getRetryInterval().toMillis();
                     CompletableFuture.delayedExecutor(retryDelay, TimeUnit.MILLISECONDS)
                             .execute(() -> executeWithRetry(request, currentRetry + 1, maxRetries, future));
                 } else {
@@ -229,7 +229,7 @@ public class ClientProxyFactory {
                     log.warn("请求异常，准备第{}次重试", currentRetry + 1);
 
                     // 延迟后重试
-                    long retryDelay = clientConfig.getRetryIntervalMillis();
+                    long retryDelay = (int) clientConfig.getRetryInterval().toMillis();
                     CompletableFuture.delayedExecutor(retryDelay, TimeUnit.MILLISECONDS)
                             .execute(() -> executeWithRetry(request, currentRetry + 1, maxRetries, future));
                 } else {

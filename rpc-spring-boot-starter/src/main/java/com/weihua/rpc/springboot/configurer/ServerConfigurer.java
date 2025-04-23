@@ -1,7 +1,7 @@
 /*
  * @Author: weihua hu
  * @Date: 2025-04-15 01:33:49
- * @LastEditTime: 2025-04-15 15:27:31
+ * @LastEditTime: 2025-04-23 16:08:55
  * @LastEditors: weihua hu
  * @Description: 
  */
@@ -14,6 +14,8 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.env.Environment;
+
+import java.time.Duration;
 
 /**
  * 服务器配置绑定器
@@ -55,26 +57,38 @@ public class ServerConfigurer {
             config.setMaxConnections(maxConnections);
         }
 
-        // 空闲超时配置
-        Integer readerIdleTime = env.getProperty("rpc.server.reader-idle-time", Integer.class);
+        // 空闲超时配置 - 直接使用Duration属性而非废弃方法
+        Duration readerIdleTime = env.getProperty("rpc.server.reader-idle-time", Duration.class);
         if (readerIdleTime != null) {
             config.setReaderIdleTime(readerIdleTime);
+        } else {
+            // 直接访问RpcServerProperties中的Duration属性
+            config.setReaderIdleTime(properties.getReaderIdleTime());
         }
 
-        Integer writerIdleTime = env.getProperty("rpc.server.writer-idle-time", Integer.class);
+        Duration writerIdleTime = env.getProperty("rpc.server.writer-idle-time", Duration.class);
         if (writerIdleTime != null) {
             config.setWriterIdleTime(writerIdleTime);
+        } else {
+            // 直接访问RpcServerProperties中的Duration属性
+            config.setWriterIdleTime(properties.getWriterIdleTime());
         }
 
-        Integer allIdleTime = env.getProperty("rpc.server.all-idle-time", Integer.class);
+        Duration allIdleTime = env.getProperty("rpc.server.all-idle-time", Duration.class);
         if (allIdleTime != null) {
             config.setAllIdleTime(allIdleTime);
+        } else {
+            // 直接访问RpcServerProperties中的Duration属性
+            config.setAllIdleTime(properties.getAllIdleTime());
         }
 
         // 请求处理超时
-        Integer requestTimeout = env.getProperty("rpc.server.request-timeout", Integer.class);
-        if (requestTimeout != null && requestTimeout > 0) {
+        Duration requestTimeout = env.getProperty("rpc.server.request-timeout", Duration.class);
+        if (requestTimeout != null) {
             config.setRequestTimeout(requestTimeout);
+        } else {
+            // 直接访问RpcServerProperties中的Duration属性
+            config.setRequestTimeout(properties.getRequestTimeout());
         }
 
         return config;

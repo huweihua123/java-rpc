@@ -1,7 +1,7 @@
 /*
  * @Author: weihua hu
  * @Date: 2025-04-10 02:20:37
- * @LastEditTime: 2025-04-14 16:28:13
+ * @LastEditTime: 2025-04-23 15:46:30
  * @LastEditors: weihua hu
  * @Description: 注册中心配置
  */
@@ -12,6 +12,7 @@ import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.PostConstruct;
+import java.time.Duration;
 
 /**
  * 注册中心配置
@@ -32,14 +33,14 @@ public class RegistryConfig {
     private String address = "127.0.0.1:8500";
 
     /**
-     * 连接超时（毫秒）
+     * 连接超时
      */
-    private int connectTimeout = 5000;
+    private Duration connectTimeout = Duration.ofSeconds(5);
 
     /**
-     * 请求超时（毫秒）
+     * 请求超时
      */
-    private int timeout = 5000;
+    private Duration timeout = Duration.ofSeconds(5);
 
     /**
      * 重试次数
@@ -47,32 +48,33 @@ public class RegistryConfig {
     private int retryTimes = 3;
 
     /**
-     * 服务健康检查间隔（秒）
+     * 服务健康检查间隔
      */
-    private int healthCheckPeriod = 10;
+    private Duration healthCheckPeriod = Duration.ofSeconds(10);
 
     /**
-     * 健康检查间隔（秒）
+     * 健康检查间隔
      * 用于TCP健康检查的检查间隔配置
      */
-    private long checkInterval = 10;
+    private Duration checkInterval = Duration.ofSeconds(10);
 
     /**
-     * 健康检查超时（秒）
+     * 健康检查超时
      * 每次健康检查的超时时间
      */
-    private long checkTimeout = 5;
+    private Duration checkTimeout = Duration.ofSeconds(5);
 
     /**
      * 服务注销时间
      * 服务被标记为不健康后多久自动注销
      */
-    private String deregisterTime = "30s";
+    private Duration deregisterTime = Duration.ofSeconds(30);
 
     @PostConstruct
     public void init() {
-        log.info("注册中心配置: 类型={}, 地址={}, 连接超时={}ms, 请求超时={}ms, 重试次数={}, 健康检查间隔={}s, TCP检查间隔={}, TCP检查超时={}, 服务注销时间={}",
-                type, address, connectTimeout, timeout, retryTimes, healthCheckPeriod,
-                checkInterval, checkTimeout, deregisterTime);
+        log.info("注册中心配置: 类型={}, 地址={}, 连接超时={}ms, 请求超时={}ms, 重试次数={}, 健康检查间隔={}s, TCP检查间隔={}s, TCP检查超时={}s, 服务注销时间={}s",
+                type, address, connectTimeout.toMillis(), timeout.toMillis(), retryTimes, 
+                healthCheckPeriod.getSeconds(), checkInterval.getSeconds(), 
+                checkTimeout.getSeconds(), deregisterTime.getSeconds());
     }
 }

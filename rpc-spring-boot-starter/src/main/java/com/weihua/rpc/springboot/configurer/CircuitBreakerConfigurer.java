@@ -32,7 +32,7 @@ public class CircuitBreakerConfigurer {
                 environment,
                 properties.getFailures(),
                 properties.getSuccessRateThreshold(),
-                properties.getResetTimeoutMs(),
+                properties.getResetTimeout(), // 修改为使用 Duration 类型的方法
                 properties.getHalfOpenRequests());
     }
 }

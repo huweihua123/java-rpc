@@ -1,7 +1,7 @@
 /*
  * @Author: weihua hu
  * @Date: 2025-04-15 01:24:29
- * @LastEditTime: 2025-04-15 02:33:21
+ * @LastEditTime: 2025-04-23 16:02:14
  * @LastEditors: weihua hu
  * @Description:
  */
@@ -37,14 +37,10 @@ public class ClientConfigurer {
         config.setConnectTimeout(properties.getConnectTimeout());
         config.setRequestTimeout(properties.getRequestTimeout());
 
-        // 连接管理配置
-        config.setMaxConnectionsPerAddress(properties.getMaxConnectionsPerAddress());
-        config.setInitConnectionsPerAddress(properties.getInitConnectionsPerAddress());
-
         // 重试配置
         config.setRetryEnable(properties.isRetryEnable());
         config.setMaxRetryAttempts(properties.getMaxRetries());
-        config.setRetryIntervalMillis(properties.getRetryInterval());
+        config.setRetryInterval(properties.getRetryInterval());
         config.setRetryOnlyIdempotent(properties.isRetryOnlyIdempotent());
 
         // 退避策略配置

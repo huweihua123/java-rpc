@@ -23,8 +23,8 @@ import java.util.Map;
 @Slf4j
 public class ZkServiceRegistry extends AbstractServiceRegistry {
 
-    private CuratorFramework client;
     private final Map<String, String> registeredServices = new HashMap<>();
+    private CuratorFramework client;
 
     @Override
     public void init() {
@@ -37,8 +37,8 @@ public class ZkServiceRegistry extends AbstractServiceRegistry {
     private void initZkClient() {
         try {
             String zkAddress = registryConfig.getAddress();
-            int connectTimeout = registryConfig.getConnectTimeout();
-            int sessionTimeout = registryConfig.getTimeout();
+            int connectTimeout = (int) registryConfig.getConnectTimeout().toMillis();
+            int sessionTimeout = (int) registryConfig.getTimeout().toMillis();
 
             // 创建重试策略
             int baseSleepTimeMs = 1000;

@@ -1,7 +1,7 @@
 /*
  * @Author: weihua hu
  * @Date: 2025-04-15 05:25:14
- * @LastEditTime: 2025-04-15 15:26:11
+ * @LastEditTime: 2025-04-23 15:47:55
  * @LastEditors: weihua hu
  * @Description: 
  */
@@ -13,6 +13,7 @@ import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.PostConstruct;
+import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -57,6 +58,30 @@ public class RateLimitConfig {
      * 令牌桶容量（突发流量处理能力）
      */
     private int burstCapacity = 50;
+    
+    /**
+     * 令牌填充周期
+     * 默认100ms填充一次令牌
+     */
+    private Duration tokenRefillInterval = Duration.ofMillis(100);
+    
+    /**
+     * 滑动窗口时间长度
+     * 默认1秒的窗口时间
+     */
+    private Duration slidingWindowSize = Duration.ofSeconds(1);
+    
+    /**
+     * 限流统计刷新时间
+     * 默认5秒刷新一次统计数据
+     */
+    private Duration statsRefreshInterval = Duration.ofSeconds(5);
+    
+    /**
+     * 限流熔断恢复时间
+     * 默认60秒后自动解除限流
+     */
+    private Duration limitingRecoveryTime = Duration.ofSeconds(60);
 
     /**
      * 接口QPS配置映射
@@ -80,8 +105,32 @@ public class RateLimitConfig {
 
     @PostConstruct
     public void init() {
-        log.info("限流配置初始化完成: 启用状态={}, 默认QPS={}, 默认策略={}, 自适应限流={}",
-                enabled ? "启用" : "禁用", defaultQps, defaultStrategy,
-                adaptiveQps ? "启用" : "禁用");
+        log.info("限流配置初始化完成: 启用状态={}, 默认QPS={}, 默认策略={}, 自适应限流={}, 令牌填充周期={}ms, 滑动窗口大小={}s",
+                enabled ? "启用" : "禁用", 
+                defaultQps, 
+                defaultStrategy,
+                adaptiveQps ? "启用" : "禁用",
+                tokenRefillInterval.toMillis(),
+                slidingWindowSize.getSeconds());
+    }
+    
+    /**
+     * 获取令牌填充周期毫秒数
+     * @deprecated 建议直接使用getTokenRefillInterval()，此方法仅用于兼容
+     * @return 填充周期毫秒数
+     */
+    @Deprecated
+    public long getTokenRefillIntervalMs() {
+        return tokenRefillInterval.toMillis();
+    }
+    
+    /**
+     * 获取滑动窗口时间长度毫秒数
+     * @deprecated 建议直接使用getSlidingWindowSize()，此方法仅用于兼容
+     * @return 窗口大小毫秒数
+     */
+    @Deprecated
+    public long getSlidingWindowSizeMs() {
+        return slidingWindowSize.toMillis();
     }
 }

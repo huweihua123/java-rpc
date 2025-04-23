@@ -1,7 +1,7 @@
 /*
  * @Author: weihua hu
  * @Date: 2025-04-15 01:31:02
- * @LastEditTime: 2025-04-15 01:50:45
+ * @LastEditTime: 2025-04-23 16:06:54
  * @LastEditors: weihua hu
  * @Description: 
  */
@@ -14,6 +14,8 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.env.Environment;
+
+import java.time.Duration;
 
 /**
  * 服务发现配置绑定器
@@ -39,11 +41,16 @@ public class DiscoveryConfigurer {
         config.setType(properties.getType());
         config.setAddress(properties.getAddress());
         config.setConnectTimeout(properties.getConnectTimeout());
+        config.setTimeout(properties.getTimeout());
+        config.setRetryTimes(properties.getRetryTimes());
+        config.setSyncPeriod(properties.getSyncPeriod());
+        config.setHealthCheckEnabled(properties.isHealthCheckEnabled());
+        config.setHealthCheckInterval(properties.getHealthCheckPeriod());
 
         // 检查环境变量中是否有其他配置属性
-        Integer timeout = env.getProperty("rpc.discovery.timeout", Integer.class);
-        if (timeout != null) {
-            config.setTimeout(timeout);
+        Duration discoveryTimeout = env.getProperty("rpc.discovery.timeout", Duration.class);
+        if (discoveryTimeout != null) {
+            config.setTimeout(discoveryTimeout);
         }
 
         Integer retryTimes = env.getProperty("rpc.discovery.retry-times", Integer.class);
@@ -51,7 +58,7 @@ public class DiscoveryConfigurer {
             config.setRetryTimes(retryTimes);
         }
 
-        Integer syncPeriod = env.getProperty("rpc.discovery.sync-period", Integer.class);
+        Duration syncPeriod = env.getProperty("rpc.discovery.sync-period", Duration.class);
         if (syncPeriod != null) {
             config.setSyncPeriod(syncPeriod);
         }
@@ -61,7 +68,7 @@ public class DiscoveryConfigurer {
             config.setHealthCheckEnabled(healthCheckEnabled);
         }
 
-        Integer healthCheckInterval = env.getProperty("rpc.discovery.health-check-interval", Integer.class);
+        Duration healthCheckInterval = env.getProperty("rpc.discovery.health-check-interval", Duration.class);
         if (healthCheckInterval != null) {
             config.setHealthCheckInterval(healthCheckInterval);
         }
@@ -71,9 +78,9 @@ public class DiscoveryConfigurer {
             config.setMetadataCache(metadataCache);
         }
 
-        Integer metadataExpireSeconds = env.getProperty("rpc.discovery.metadata-expire-seconds", Integer.class);
-        if (metadataExpireSeconds != null) {
-            config.setMetadataExpireSeconds(metadataExpireSeconds);
+        Duration metadataExpireTime = env.getProperty("rpc.discovery.metadata-expire-time", Duration.class);
+        if (metadataExpireTime != null) {
+            config.setMetadataExpireTime(metadataExpireTime);
         }
 
         return config;

@@ -3,6 +3,8 @@ package com.weihua.rpc.core.protocol;
 import com.weihua.rpc.common.model.RpcResponse;
 import lombok.extern.slf4j.Slf4j;
 
+import java.time.Duration;
+import java.time.Instant;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
@@ -32,14 +34,19 @@ public class RpcFutureManager {
     // 请求统计
     private static final AtomicInteger PENDING_REQUESTS = new AtomicInteger(0);
 
-    // 默认超时时间（毫秒）
-    private static final long DEFAULT_TIMEOUT = 5000;
+    // 默认超时时间
+    private static final Duration DEFAULT_TIMEOUT = Duration.ofSeconds(5);
+
+    // 超时检查间隔
+    private static final Duration CHECK_INTERVAL = Duration.ofSeconds(1);
 
     static {
         // 启动定时任务，检查超时请求
         TIMEOUT_CHECKER.scheduleAtFixedRate(
                 RpcFutureManager::checkTimeoutRequests,
-                1000, 1000, TimeUnit.MILLISECONDS);
+                CHECK_INTERVAL.toMillis(),
+                CHECK_INTERVAL.toMillis(),
+                TimeUnit.MILLISECONDS);
     }
 
     /**
@@ -47,11 +54,11 @@ public class RpcFutureManager {
      */
     private static class RequestContext {
         final CompletableFuture<RpcResponse> future;
-        final long createTime;
+        final Instant createTime;
 
         RequestContext(CompletableFuture<RpcResponse> future) {
             this.future = future;
-            this.createTime = System.currentTimeMillis();
+            this.createTime = Instant.now();
         }
     }
 
@@ -78,9 +85,9 @@ public class RpcFutureManager {
         if (context != null) {
             context.future.complete(response);
             PENDING_REQUESTS.decrementAndGet();
-            long responseTime = System.currentTimeMillis() - context.createTime;
+            Duration responseTime = Duration.between(context.createTime, Instant.now());
             log.debug("完成请求Future: {}, 响应时间: {}ms, 当前待处理请求: {}",
-                    requestId, responseTime, PENDING_REQUESTS.get());
+                    requestId, responseTime.toMillis(), PENDING_REQUESTS.get());
         } else {
             log.warn("未找到请求ID对应的Future: {}, 可能已超时或被取消", requestId);
         }
@@ -97,9 +104,9 @@ public class RpcFutureManager {
         if (context != null) {
             context.future.completeExceptionally(throwable);
             PENDING_REQUESTS.decrementAndGet();
-            long responseTime = System.currentTimeMillis() - context.createTime;
+            Duration responseTime = Duration.between(context.createTime, Instant.now());
             log.debug("请求Future异常完成: {}, 响应时间: {}ms, 异常: {}",
-                    requestId, responseTime, throwable.getMessage());
+                    requestId, responseTime.toMillis(), throwable.getMessage());
         }
     }
 
@@ -120,16 +127,16 @@ public class RpcFutureManager {
      * 检查是否有超时请求
      */
     private static void checkTimeoutRequests() {
-        long now = System.currentTimeMillis();
+        Instant now = Instant.now();
 
         // 遍历检查所有进行中的请求
         FUTURES.forEach((requestId, context) -> {
-            long elapsedTime = now - context.createTime;
-            if (elapsedTime > DEFAULT_TIMEOUT) {
+            Duration elapsedTime = Duration.between(context.createTime, now);
+            if (elapsedTime.compareTo(DEFAULT_TIMEOUT) > 0) {
                 // 超时处理
-                log.warn("请求超时: {}, 已经过 {}ms", requestId, elapsedTime);
+                log.warn("请求超时: {}, 已经过 {}ms", requestId, elapsedTime.toMillis());
                 completeExceptionally(requestId,
-                        new TimeoutException("请求超时，已等待" + elapsedTime + "ms"));
+                        new TimeoutException("请求超时，已等待" + elapsedTime.toMillis() + "ms"));
             }
         });
     }

@@ -7,10 +7,8 @@ import com.weihua.rpc.common.model.RpcRequest;
 import com.weihua.rpc.core.client.invoker.Invoker;
 import com.weihua.rpc.core.client.registry.AbstractServiceDiscovery;
 import com.weihua.rpc.core.server.annotation.MethodSignature;
-
 import lombok.extern.slf4j.Slf4j;
 
-import java.net.InetSocketAddress;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.function.Consumer;
@@ -57,8 +55,8 @@ public class ConsulServiceDiscovery extends AbstractServiceDiscovery {
             String host = address.split(":")[0];
             int port = Integer.parseInt(address.split(":")[1]);
             this.consulClient = Consul.builder().withUrl(String.format("http://%s:%d", host, port))
-                    .withConnectTimeoutMillis(discoveryConfig.getConnectTimeout())
-                    .withReadTimeoutMillis(discoveryConfig.getTimeout())
+                    .withConnectTimeoutMillis(discoveryConfig.getConnectTimeout().toMillis())
+                    .withReadTimeoutMillis(discoveryConfig.getTimeout().toMillis())
                     .build();
 
             log.info("Consul客户端初始化成功: {}:{}", host, port);
@@ -162,7 +160,7 @@ public class ConsulServiceDiscovery extends AbstractServiceDiscovery {
             } catch (Exception e) {
                 log.error("定时同步服务调度失败: {}", e.getMessage(), e);
             }
-        }, 0, discoveryConfig.getSyncPeriod(), TimeUnit.SECONDS);
+        }, 0, discoveryConfig.getSyncPeriod().toSeconds(), TimeUnit.SECONDS);
     }
 
     /**

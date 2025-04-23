@@ -13,6 +13,7 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.lang.reflect.Method;
 import java.net.InetSocketAddress;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -44,8 +45,8 @@ public class ConsulServiceRegistry extends AbstractServiceRegistry {
 
             this.consulClient = Consul.builder()
                     .withUrl(String.format("http://%s:%d", host, port))
-                    .withConnectTimeoutMillis(registryConfig.getConnectTimeout())
-                    .withReadTimeoutMillis(registryConfig.getTimeout())
+                    .withConnectTimeoutMillis(registryConfig.getConnectTimeout().toMillis())
+                    .withReadTimeoutMillis(registryConfig.getTimeout().toMillis())
                     .build();
 
             log.info("Consul客户端初始化成功, 地址: {}:{}", host, port);
@@ -87,9 +88,9 @@ public class ConsulServiceRegistry extends AbstractServiceRegistry {
             // 创建TCP健康检查 - 使用配置的参数
             Registration.RegCheck check = Registration.RegCheck.tcp(
                     serviceAddress.getHostString() + ":" + serviceAddress.getPort(),
-                    registryConfig.getCheckInterval(),
-                    registryConfig.getCheckTimeout(),
-                    registryConfig.getDeregisterTime());
+                    registryConfig.getCheckInterval().toSeconds(),
+                    registryConfig.getCheckTimeout().toSeconds(),
+                    formatConsulDuration(registryConfig.getDeregisterTime())); // 使用正确的格式化方法
 
             // 构建服务注册信息
             Registration service = ImmutableRegistration.builder()
@@ -112,6 +113,20 @@ public class ConsulServiceRegistry extends AbstractServiceRegistry {
         } catch (Exception e) {
             log.error("服务注册失败，服务名：{}, 错误信息：{}", serviceName, e.getMessage(), e);
             throw new RuntimeException("服务注册失败", e);
+        }
+    }
+
+    /**
+     * 将Duration格式化为Consul支持的时间格式 (例如: "30s", "5m")
+     */
+    private String formatConsulDuration(Duration duration) {
+        long seconds = duration.getSeconds();
+        if (seconds % 60 == 0 && seconds >= 60) {
+            // 如果是整分钟，使用分钟表示
+            return (seconds / 60) + "m";
+        } else {
+            // 否则使用秒表示
+            return seconds + "s";
         }
     }
 

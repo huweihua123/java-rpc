@@ -3,7 +3,6 @@ package com.weihua.rpc.core.server.netty.handler;
 import com.weihua.rpc.common.model.RpcRequest;
 import com.weihua.rpc.common.model.RpcResponse;
 import com.weihua.rpc.core.server.provider.ServiceProvider;
-import com.weihua.rpc.core.server.ratelimit.RateLimit;
 import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
@@ -79,7 +78,7 @@ public class NettyServerHandler extends SimpleChannelInboundHandler<RpcRequest> 
             handleHeartbeat(ctx, request);
             return;
         }
-
+        // handleBusinessRequest(ctx, request);
         // 异步处理业务请求
         SERVICE_EXECUTOR.submit(() -> handleBusinessRequest(ctx, request));
     }

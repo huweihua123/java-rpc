@@ -86,8 +86,15 @@ public class OrderServiceImpl implements OrderService {
     }
 
     @Override
-    @RateLimit(qps = 2) // 查询接口QPS中等
+    @RateLimit(qps = 20000) // 查询接口QPS中等
     public List<Order> getOrdersByUserId(Long userId) {
+        // 随机睡眠模拟查询延迟
+        try {
+            Thread.sleep(new Random().nextInt(100));
+        } catch (InterruptedException e) {
+            log.error("查询延迟模拟异常: {}", e.getMessage());
+        }
+
         log.info("获取用户订单: userId={}", userId);
         return orderMap.values().stream()
                 .filter(order -> order.getUserId().equals(userId))

@@ -1,7 +1,7 @@
 /*
  * @Author: weihua hu
  * @Date: 2025-04-15 16:45:00
- * @LastEditTime: 2025-04-16 14:23:12
+ * @LastEditTime: 2025-04-23 15:55:13
  * @LastEditors: weihua hu
  * @Description: 
  */
@@ -14,6 +14,7 @@ import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.concurrent.atomic.AtomicLong;
+import java.time.Instant;
 
 /**
  * 限流器抽象基类，提供通用的统计逻辑和SPI扩展支持
@@ -34,7 +35,7 @@ public abstract class AbstractRateLimiter implements RateLimit {
     protected final AtomicLong rejectCounter = new AtomicLong(0);
 
     // 最后一次重置统计的时间戳
-    protected volatile long lastResetTime = System.currentTimeMillis();
+    protected volatile Instant lastResetTime = Instant.now();
 
     public AbstractRateLimiter(int qps, Strategy strategy) {
         this.qps = qps;
@@ -73,7 +74,7 @@ public abstract class AbstractRateLimiter implements RateLimit {
     public void resetStatistics() {
         requestCounter.set(0);
         rejectCounter.set(0);
-        lastResetTime = System.currentTimeMillis();
+        lastResetTime = Instant.now();
         log.debug("重置限流器统计: 策略={}, QPS={}", strategy, qps);
     }
 

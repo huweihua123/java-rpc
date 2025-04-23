@@ -3,7 +3,7 @@
  * @Date: 2025-04-10 02:23:13
  * @LastEditTime: 2025-04-12 20:28:41
  * @LastEditors: weihua hu
- * @Description: 
+ * @Description:
  */
 package com.weihua.rpc.core.server.netty.handler;
 
@@ -44,9 +44,9 @@ public class NettyServerInitializer extends ChannelInitializer<SocketChannel> {
 
             // 1. 添加空闲状态处理器
             pipeline.addLast("idleState", new IdleStateHandler(
-                    serverConfig.getReaderIdleTime(),
-                    serverConfig.getWriterIdleTime(),
-                    serverConfig.getAllIdleTime(),
+                    serverConfig.getReaderIdleTime().toSeconds(),
+                    serverConfig.getWriterIdleTime().toSeconds(),
+                    serverConfig.getAllIdleTime().toSeconds(),
                     TimeUnit.SECONDS));
 
             // 2. 添加编解码器

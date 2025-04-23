@@ -1,7 +1,7 @@
 /*
  * @Author: weihua hu
  * @Date: 2025-04-10 02:36:03
- * @LastEditTime: 2025-04-15 02:25:49
+ * @LastEditTime: 2025-04-23 16:16:06
  * @LastEditors: weihua hu
  * @Description: 
  */
@@ -10,6 +10,7 @@ package com.weihua.rpc.springboot.properties;
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -46,24 +47,24 @@ public class RpcServerProperties {
     private int maxConnections = 10000;
 
     /**
-     * 读空闲超时时间（秒）
+     * 读空闲超时时间
      */
-    private int readerIdleTime = 180;
+    private Duration readerIdleTime = Duration.ofSeconds(180);
 
     /**
-     * 写空闲超时时间（秒）
+     * 写空闲超时时间
      */
-    private int writerIdleTime = 60;
+    private Duration writerIdleTime = Duration.ofSeconds(60);
 
     /**
-     * 所有类型空闲超时时间（秒）
+     * 所有类型空闲超时时间
      */
-    private int allIdleTime = 0;
+    private Duration allIdleTime = Duration.ofSeconds(0);
 
     /**
-     * 请求处理超时时间（毫秒）
+     * 请求处理超时时间
      */
-    private int requestTimeout = 5000;
+    private Duration requestTimeout = Duration.ofSeconds(5);
 
     /**
      * 是否自动启动服务
@@ -77,10 +78,10 @@ public class RpcServerProperties {
     private String name = "rpc-server";
 
     /**
-     * 优雅关闭超时（毫秒）
+     * 优雅关闭超时时间
      * 关闭服务器时等待处理中请求的最长时间
      */
-    private int shutdownTimeout = 15000;
+    private Duration shutdownTimeout = Duration.ofSeconds(15);
 
     /**
      * 最大消息长度（字节）
@@ -210,4 +211,5 @@ public class RpcServerProperties {
          */
         private boolean clientAuth = false;
     }
+
 }

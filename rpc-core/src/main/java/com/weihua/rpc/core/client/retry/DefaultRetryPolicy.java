@@ -1,7 +1,7 @@
 /*
  * @Author: weihua hu
  * @Date: 2025-04-16 22:09:55
- * @LastEditTime: 2025-04-16 22:09:57
+ * @LastEditTime: 2025-04-23 15:59:03
  * @LastEditors: weihua hu
  * @Description: 
  */
@@ -11,6 +11,7 @@ import com.weihua.rpc.common.model.RpcResponse;
 import com.weihua.rpc.core.client.config.ClientConfig;
 import lombok.extern.slf4j.Slf4j;
 
+import java.time.Duration;
 import java.util.Random;
 
 @Slf4j
@@ -51,29 +52,60 @@ public class DefaultRetryPolicy implements RetryPolicy {
         }
     }
 
+    /**
+     * 获取下一次重试延迟时间
+     * 
+     * @param retryCount 当前重试次数
+     * @param response   上一次响应
+     * @return 下一次重试延迟时间
+     */
     @Override
-    public long getNextRetryDelayMs(int retryCount, RpcResponse response) {
-        long baseDelay = clientConfig.getRetryIntervalMillis();
+    public Duration getNextRetryDelay(int retryCount, RpcResponse response) {
+        Duration baseDelay = clientConfig.getRetryInterval();
 
         // 对于限流错误，使用更长的延迟
         if (response != null && response.getCode() == 429) {
-            baseDelay *= 2;
-            log.info("遇到限流，使用更长的重试延迟: {}ms", baseDelay);
+            baseDelay = baseDelay.multipliedBy(2);
+            log.info("遇到限流，使用更长的重试延迟: {}", baseDelay);
         }
 
         // 指数退避策略
         if (clientConfig.getBackoffMultiplier() > 1.0) {
-            baseDelay *= Math.pow(clientConfig.getBackoffMultiplier(), retryCount);
+            long multiplier = (long) (Math.pow(clientConfig.getBackoffMultiplier(), retryCount) * 100);
+            baseDelay = baseDelay.multipliedBy(multiplier).dividedBy(100);
         }
 
         // 最大退避时间限制
-        baseDelay = Math.min(baseDelay, clientConfig.getMaxBackoffTime());
+        if (baseDelay.compareTo(clientConfig.getMaxBackoffTime()) > 0) {
+            baseDelay = clientConfig.getMaxBackoffTime();
+        }
 
         // 增加随机抖动，避免重试风暴
         if (clientConfig.isAddJitter()) {
-            baseDelay = (long) (baseDelay * (1.0 + random.nextDouble() * 0.2 - 0.1)); // ±10%抖动
+            double jitterFactor = 1.0 + random.nextDouble() * 0.2 - 0.1; // ±10%抖动
+            long jitteredMillis = (long) (baseDelay.toMillis() * jitterFactor);
+            baseDelay = Duration.ofMillis(jitteredMillis);
         }
 
-        return Math.max(baseDelay, clientConfig.getMinRetryInterval());
+        // 确保不小于最小重试间隔
+        if (baseDelay.compareTo(clientConfig.getMinRetryInterval()) < 0) {
+            baseDelay = clientConfig.getMinRetryInterval();
+        }
+
+        return baseDelay;
+    }
+
+    /**
+     * 获取下一次重试延迟时间（毫秒）
+     * 
+     * @param retryCount 当前重试次数
+     * @param response   上一次响应
+     * @return 下一次重试延迟时间（毫秒）
+     * @deprecated 请使用 {@link #getNextRetryDelay(int, RpcResponse)} 代替
+     */
+    @Override
+    @Deprecated
+    public long getNextRetryDelayMs(int retryCount, RpcResponse response) {
+        return getNextRetryDelay(retryCount, response).toMillis();
     }
 }

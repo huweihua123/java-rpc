@@ -119,15 +119,15 @@ public class InvokerManager {
     @PostConstruct
     public void init() {
         // 从配置中加载基础参数
-        this.reconnectInterval = clientConfig.getRetryIntervalMillis();
+        this.reconnectInterval = (int) clientConfig.getRetryInterval().toMillis();
         this.maxRetryAttempts = clientConfig.getMaxRetryAttempts();
         this.connectionMode = clientConfig.getConnectionMode();
 
         // 设置指数退避策略的参数
         this.backoffMultiplier = clientConfig.getBackoffMultiplier();
-        this.maxBackoffTime = clientConfig.getMaxBackoffTime();
+        this.maxBackoffTime = (int) clientConfig.getMaxBackoffTime().toMillis();
         this.addJitter = clientConfig.isAddJitter();
-        this.minRetryInterval = clientConfig.getMinRetryInterval();
+        this.minRetryInterval = (int) clientConfig.getMinRetryInterval().toMillisPart();
 
         // 创建调度器
         this.scheduler = Executors.newSingleThreadScheduledExecutor(r -> {
@@ -393,7 +393,7 @@ public class InvokerManager {
 
                     // 确保channel不为空并且已激活
                     if (channel != null && channel.isActive()) {
-                        Invoker newInvoker = new ChannelInvoker(channel, clientConfig.getRequestTimeout());
+                        Invoker newInvoker = new ChannelInvoker(channel, (int) clientConfig.getRequestTimeout().toMillis());
 
                         // 替换旧连接
                         invokerMap.put(finalAddress, newInvoker);
@@ -537,7 +537,7 @@ public class InvokerManager {
             Channel channel = bootstrap.connect(socketAddress).sync().channel();
 
             if (channel != null && channel.isActive()) {
-                Invoker newInvoker = new ChannelInvoker(channel, clientConfig.getRequestTimeout());
+                Invoker newInvoker = new ChannelInvoker(channel, (int) clientConfig.getRequestTimeout().toMillis());
 
                 // 替换旧连接（如果有）
                 Invoker oldInvoker = invokerMap.put(socketAddress, newInvoker);

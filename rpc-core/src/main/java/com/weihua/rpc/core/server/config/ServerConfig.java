@@ -1,7 +1,7 @@
 /*
  * @Author: weihua hu
  * @Date: 2025-04-10 02:22:26
- * @LastEditTime: 2025-04-14 16:28:21
+ * @LastEditTime: 2025-04-23 16:15:36
  * @LastEditors: weihua hu
  * @Description: 
  */
@@ -12,6 +12,7 @@ import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.PostConstruct;
+import java.time.Duration;
 
 /**
  * 服务器配置
@@ -47,24 +48,24 @@ public class ServerConfig {
     private int maxConnections = 10000;
 
     /**
-     * 读空闲超时时间（秒）
+     * 读空闲超时时间
      */
-    private int readerIdleTime = 180;
+    private Duration readerIdleTime = Duration.ofSeconds(180);
 
     /**
-     * 写空闲超时时间（秒）
+     * 写空闲超时时间
      */
-    private int writerIdleTime = 60;
+    private Duration writerIdleTime = Duration.ofSeconds(60);
 
     /**
-     * 所有类型空闲超时时间（秒）
+     * 所有类型空闲超时时间
      */
-    private int allIdleTime = 0;
+    private Duration allIdleTime = Duration.ofSeconds(0);
 
     /**
-     * 请求处理超时时间（毫秒）
+     * 请求处理超时时间
      */
-    private int requestTimeout = 5000;
+    private Duration requestTimeout = Duration.ofSeconds(5);
 
     /**
      * 初始化方法
