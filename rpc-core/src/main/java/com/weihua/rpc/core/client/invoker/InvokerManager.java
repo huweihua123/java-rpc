@@ -212,7 +212,7 @@ public class InvokerManager {
     /**
      * 添加地址到健康检查队列
      */
-    private void addToHealthCheckQueue(InetSocketAddress address) {
+    public void addToHealthCheckQueue(InetSocketAddress address) {
         if (!healthCheckQueue.contains(address)) {
             healthCheckQueue.offer(address);
         }
