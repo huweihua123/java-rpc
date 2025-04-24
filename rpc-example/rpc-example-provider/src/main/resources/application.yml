@@ -7,7 +7,7 @@ spring:
 
 # RPC 配置
 rpc:
-  mode: server  # 新增：指定模式为服务端，可选值: client, server
+  mode: server  # 指定模式为服务端
 
   loadBalance:
     type: consistenthash
@@ -18,9 +18,18 @@ rpc:
     host: 127.0.0.1
     io-threads: 4
     worker-threads: 10
+    # 添加服务端心跳配置
+    heartbeat:
+      timeout: 15s               # 服务端心跳超时时间
+      
   registry:
     type: consul
     address: 127.0.0.1:8500
+    # 优化注册中心相关配置
+    check-interval: 10s          # 健康检查间隔
+    check-timeout: 5s            # 健康检查超时
+    deregister-time: 30s         # 服务注销时间
+    
   ratelimit:
     enabled: true
     default:
@@ -31,4 +40,3 @@ logging:
   level:
     com.weihua.rpc: info
     root: warn
-
