@@ -182,9 +182,14 @@ public class InvokerManager {
                 // 获取或创建包装器
                 InvokerWrapper wrapper = invokerMap.get(address);
                 if (wrapper == null) {
-                    // 先添加地址，连接会在后续创建
                     wrapper = new InvokerWrapper(null, address);
                     invokerMap.put(address, wrapper);
+                } else if (wrapper.isConfirmedDown()) {
+                    // 添加这段逻辑: 当服务发现重新发现已确认下线的地址时，重置状态
+                    log.info("服务发现发现已下线地址[{}:{}]重新可用，重置状态",
+                            address.getHostString(), address.getPort());
+                    wrapper.setConfirmedDown(false);
+                    wrapper.resetRetry();
                 }
 
                 // 标记服务使用此地址
