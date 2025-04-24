@@ -2,7 +2,7 @@ package com.weihua.rpc.core.client.invoker;
 
 import com.weihua.rpc.common.model.RpcRequest;
 import com.weihua.rpc.common.model.RpcResponse;
-import com.weihua.rpc.core.protocol.RpcFutureManager;
+
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFutureListener;
 import lombok.extern.slf4j.Slf4j;
@@ -20,7 +20,6 @@ import java.util.concurrent.atomic.AtomicLong;
 public class ChannelInvoker implements Invoker {
 
     private final Channel channel;
-    private final int timeoutSeconds;
     private final String id;
     private final InetSocketAddress address;
 
@@ -30,9 +29,8 @@ public class ChannelInvoker implements Invoker {
     private final AtomicLong totalSuccesses = new AtomicLong(0);
     private final AtomicLong totalResponseTime = new AtomicLong(0);
 
-    public ChannelInvoker(Channel channel, int timeoutSeconds) {
+    public ChannelInvoker(Channel channel) {
         this.channel = channel;
-        this.timeoutSeconds = timeoutSeconds;
         this.address = (InetSocketAddress) channel.remoteAddress();
         this.id = UUID.randomUUID().toString();
 

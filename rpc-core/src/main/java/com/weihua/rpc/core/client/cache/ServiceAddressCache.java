@@ -49,22 +49,6 @@ public interface ServiceAddressCache {
     void unsubscribeAddressChange(String serviceName, Consumer<List<String>> listener);
 
     /**
-     * 检查服务是否可用
-     *
-     * @param serviceName 服务名称
-     * @return 是否可用
-     */
-    boolean isServiceAvailable(String serviceName);
-
-    /**
-     * 添加服务不可用监听器
-     *
-     * @param serviceName 服务名称
-     * @param listener    不可用监听器
-     */
-    void addServiceUnavailableListener(String serviceName, Runnable listener);
-
-    /**
      * 获取所有已缓存的服务名称
      * 
      * @return 服务名称集合

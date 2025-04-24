@@ -4,10 +4,11 @@ import com.weihua.rpc.common.model.RpcRequest;
 import com.weihua.rpc.common.model.RpcResponse;
 import com.weihua.rpc.core.client.config.ClientConfig;
 import com.weihua.rpc.core.client.invoker.Invoker;
+import com.weihua.rpc.core.client.invoker.RpcFutureManager;
 import com.weihua.rpc.core.client.netty.handler.NettyClientInitializer;
 import com.weihua.rpc.core.client.registry.ServiceDiscovery;
 import com.weihua.rpc.core.client.registry.balance.LoadBalance;
-import com.weihua.rpc.core.protocol.RpcFutureManager;
+
 import io.netty.bootstrap.Bootstrap;
 import io.netty.channel.EventLoopGroup;
 import io.netty.channel.nio.NioEventLoopGroup;
@@ -57,8 +58,9 @@ public class NettyRpcClient {
         this.bootstrap = new Bootstrap();
         this.bootstrap.group(eventLoopGroup)
                 .channel(NioSocketChannel.class)
-                .handler(new NettyClientInitializer())
-                .option(io.netty.channel.ChannelOption.CONNECT_TIMEOUT_MILLIS, (int) clientConfig.getConnectTimeout().toMillis())
+                .handler(new NettyClientInitializer(this.clientConfig))
+                .option(io.netty.channel.ChannelOption.CONNECT_TIMEOUT_MILLIS,
+                        (int) clientConfig.getConnectTimeout().toMillis())
                 .option(io.netty.channel.ChannelOption.SO_KEEPALIVE, true)
                 .option(io.netty.channel.ChannelOption.TCP_NODELAY, true);
 
@@ -110,7 +112,7 @@ public class NettyRpcClient {
                 return response;
             } catch (Exception e) {
                 log.error("请求执行异常: {}", e.getMessage(), e);
-                RpcFutureManager.removeFuture(request.getRequestId());
+                RpcFutureManager.completeExceptionally(request.getRequestId(), e);
                 return createFailResponse(request.getRequestId(), "请求执行异常: " + e.getMessage());
             }
         } catch (Exception e) {

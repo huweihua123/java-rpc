@@ -1,7 +1,7 @@
 /*
  * @Author: weihua hu
  * @Date: 2025-04-10 02:32:46
- * @LastEditTime: 2025-04-16 22:13:28
+ * @LastEditTime: 2025-04-24 21:41:51
  * @LastEditors: weihua hu
  * @Description: 
  */
@@ -13,6 +13,7 @@ import com.weihua.rpc.core.client.circuit.CircuitBreakerProvider;
 import com.weihua.rpc.core.client.config.ClientConfig;
 import com.weihua.rpc.core.client.config.DiscoveryConfig;
 import com.weihua.rpc.core.client.netty.NettyRpcClient;
+import com.weihua.rpc.core.client.netty.handler.NettyClientInitializer;
 import com.weihua.rpc.core.client.invoker.InvokerManager;
 import com.weihua.rpc.core.client.proxy.ClientProxyFactory;
 import com.weihua.rpc.core.client.registry.ServiceDiscovery;
@@ -107,7 +108,11 @@ public class RpcClientConfiguration {
     public NettyRpcClient nettyRpcClient(
             ClientConfig clientConfig,
             ServiceDiscovery serviceDiscovery,
-            LoadBalance loadBalance) {
+            LoadBalance loadBalance,
+            InvokerManager invokerManager) { // 新增InvokerManager参数
+
+        NettyClientInitializer.setInvokerManager(invokerManager);
+
         return new NettyRpcClient(clientConfig, serviceDiscovery, loadBalance);
     }
 }

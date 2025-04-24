@@ -1,10 +1,3 @@
-/*
- * @Author: weihua hu
- * @Date: 2025-04-15 01:31:02
- * @LastEditTime: 2025-04-23 16:06:54
- * @LastEditors: weihua hu
- * @Description: 
- */
 package com.weihua.rpc.springboot.configurer;
 
 import com.weihua.rpc.core.client.config.DiscoveryConfig;
@@ -48,6 +41,7 @@ public class DiscoveryConfigurer {
         config.setHealthCheckInterval(properties.getHealthCheckPeriod());
 
         // 检查环境变量中是否有其他配置属性
+        // 1. 保留原有属性映射
         Duration discoveryTimeout = env.getProperty("rpc.discovery.timeout", Duration.class);
         if (discoveryTimeout != null) {
             config.setTimeout(discoveryTimeout);
@@ -58,9 +52,10 @@ public class DiscoveryConfigurer {
             config.setRetryTimes(retryTimes);
         }
 
-        Duration syncPeriod = env.getProperty("rpc.discovery.sync-period", Duration.class);
-        if (syncPeriod != null) {
-            config.setSyncPeriod(syncPeriod);
+        // 2. 更新sync-interval属性名与YAML保持一致
+        Duration syncInterval = env.getProperty("rpc.discovery.sync-interval", Duration.class);
+        if (syncInterval != null) {
+            config.setSyncPeriod(syncInterval);
         }
 
         Boolean healthCheckEnabled = env.getProperty("rpc.discovery.health-check-enabled", Boolean.class);
@@ -81,6 +76,17 @@ public class DiscoveryConfigurer {
         Duration metadataExpireTime = env.getProperty("rpc.discovery.metadata-expire-time", Duration.class);
         if (metadataExpireTime != null) {
             config.setMetadataExpireTime(metadataExpireTime);
+        }
+
+        // 3. 新增故障保护配置映射
+        Boolean faultToleranceEnabled = env.getProperty("rpc.discovery.fault-tolerance.enabled", Boolean.class);
+        if (faultToleranceEnabled != null) {
+            config.setFaultToleranceEnabled(faultToleranceEnabled);
+        }
+
+        String faultToleranceMode = env.getProperty("rpc.discovery.fault-tolerance.mode", String.class);
+        if (faultToleranceMode != null) {
+            config.setFaultToleranceMode(faultToleranceMode);
         }
 
         return config;

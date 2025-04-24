@@ -115,32 +115,6 @@ public class DefaultServiceAddressCache implements ServiceAddressCache {
     }
 
     @Override
-    public boolean isServiceAvailable(String serviceName) {
-        if (serviceName == null) {
-            return false;
-        }
-
-        rwLock.readLock().lock();
-        try {
-            List<String> addresses = addressCache.get(serviceName);
-            return addresses != null && !addresses.isEmpty();
-        } finally {
-            rwLock.readLock().unlock();
-        }
-    }
-
-    @Override
-    public void addServiceUnavailableListener(String serviceName, Runnable listener) {
-        if (serviceName == null || listener == null) {
-            return;
-        }
-
-        Set<Runnable> listeners = serviceUnavailableListeners.computeIfAbsent(
-                serviceName, k -> ConcurrentHashMap.newKeySet());
-        listeners.add(listener);
-    }
-
-    @Override
     public Set<String> getAllServiceNames() {
         rwLock.readLock().lock();
         try {

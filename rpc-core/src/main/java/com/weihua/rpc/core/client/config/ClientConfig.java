@@ -1,7 +1,7 @@
 /*
  * @Author: weihua hu
  * @Date: 2025-04-10 01:51:39
- * @LastEditTime: 2025-04-23 15:38:57
+ * @LastEditTime: 2025-04-24 19:58:36
  * @LastEditors: weihua hu
  * @Description:
  */
@@ -37,8 +37,8 @@ public class ClientConfig {
     private boolean retryOnlyIdempotent = true;
 
     // 指数退避策略配置
-    private double backoffMultiplier = 2.0;
-    private Duration maxBackoffTime = Duration.ofSeconds(30);
+    private double backoffMultiplier = 1.5;
+    private Duration maxBackoffTime = Duration.ofSeconds(60);
     private boolean addJitter = true;
     private Duration minRetryInterval = Duration.ofMillis(500);
 
@@ -46,8 +46,15 @@ public class ClientConfig {
     private ConnectionMode connectionMode = ConnectionMode.LAZY;
 
     // 心跳配置
-    private Duration heartbeatInterval = Duration.ofSeconds(30);
-    private Duration heartbeatTimeout = Duration.ofSeconds(5);
+    private Duration heartbeatInterval = Duration.ofSeconds(10);
+    private Duration heartbeatTimeout = Duration.ofSeconds(3);
+
+    // 读空闲超时时间
+    private Duration readerIdleTime = Duration.ofSeconds(13);
+    // 写空闲超时时间
+    private Duration writerIdleTime = Duration.ofSeconds(5);
+    // 所有空闲超时时间
+    private Duration allIdleTime = Duration.ofSeconds(0);
 
     // 负载均衡配置
     private String loadBalanceStrategy = "random";

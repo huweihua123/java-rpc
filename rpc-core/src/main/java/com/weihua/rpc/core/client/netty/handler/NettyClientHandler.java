@@ -8,7 +8,8 @@
 package com.weihua.rpc.core.client.netty.handler;
 
 import com.weihua.rpc.common.model.RpcResponse;
-import com.weihua.rpc.core.protocol.RpcFutureManager;
+import com.weihua.rpc.core.client.invoker.RpcFutureManager;
+
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
 import lombok.extern.slf4j.Slf4j;

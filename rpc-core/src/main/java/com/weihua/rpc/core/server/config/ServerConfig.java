@@ -1,7 +1,7 @@
 /*
  * @Author: weihua hu
  * @Date: 2025-04-10 02:22:26
- * @LastEditTime: 2025-04-23 16:15:36
+ * @LastEditTime: 2025-04-24 19:16:28
  * @LastEditors: weihua hu
  * @Description: 
  */
@@ -50,12 +50,12 @@ public class ServerConfig {
     /**
      * 读空闲超时时间
      */
-    private Duration readerIdleTime = Duration.ofSeconds(180);
+    private Duration readerIdleTime = Duration.ofSeconds(15);
 
     /**
      * 写空闲超时时间
      */
-    private Duration writerIdleTime = Duration.ofSeconds(60);
+    private Duration writerIdleTime = Duration.ofSeconds(10);
 
     /**
      * 所有类型空闲超时时间
