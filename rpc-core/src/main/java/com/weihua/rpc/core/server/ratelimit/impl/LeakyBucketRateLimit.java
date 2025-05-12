@@ -20,26 +20,26 @@ import java.util.concurrent.locks.ReentrantLock;
  */
 @Slf4j
 public class LeakyBucketRateLimit extends AbstractRateLimiter {
-    
+
     // 漏桶容量
     private final int capacity;
-    
+
     // 漏水速率（每秒）
     private double leakRatePerSecond;
-    
+
     // 当前水量
     private double currentWater;
-    
+
     // 上次漏水时间
     private Instant lastLeakTime;
-    
+
     // 锁，保护并发修改
     private final Lock lock = new ReentrantLock();
 
     /**
      * 创建漏桶限流器
      * 
-     * @param qps 每秒允许的最大请求数
+     * @param qps      每秒允许的最大请求数
      * @param capacity 漏桶容量，默认等于QPS
      */
     public LeakyBucketRateLimit(int qps, int capacity) {
@@ -48,10 +48,10 @@ public class LeakyBucketRateLimit extends AbstractRateLimiter {
         this.leakRatePerSecond = qps; // 每秒漏水速率
         this.currentWater = 0;
         this.lastLeakTime = Instant.now();
-        
+
         log.debug("创建漏桶限流器: QPS={}, 容量={}", qps, this.capacity);
     }
-    
+
     /**
      * 创建漏桶限流器，容量默认等于QPS
      * 
@@ -68,12 +68,12 @@ public class LeakyBucketRateLimit extends AbstractRateLimiter {
             // 计算漏出的水量
             Instant now = Instant.now();
             Duration elapsed = Duration.between(lastLeakTime, now);
-            
+
             // 更新当前水量和时间
             double leaked = elapsed.toMillis() * (leakRatePerSecond / 1000.0);
             currentWater = Math.max(0, currentWater - leaked);
             lastLeakTime = now;
-            
+
             // 判断是否可以加入请求
             if (currentWater < capacity) {
                 // 可以加水
@@ -88,7 +88,7 @@ public class LeakyBucketRateLimit extends AbstractRateLimiter {
             lock.unlock();
         }
     }
-    
+
     @Override
     public void resetStatistics() {
         super.resetStatistics();
@@ -101,7 +101,7 @@ public class LeakyBucketRateLimit extends AbstractRateLimiter {
             lock.unlock();
         }
     }
-    
+
     @Override
     public void updateQps(int newQps) {
         lock.lock();
@@ -109,7 +109,7 @@ public class LeakyBucketRateLimit extends AbstractRateLimiter {
             super.updateQps(newQps);
             // 更新漏水速率
             this.leakRatePerSecond = newQps;
-            
+
             // 如果水量超过新容量，则调整水量
             if (currentWater > newQps) {
                 currentWater = newQps;
@@ -119,9 +119,10 @@ public class LeakyBucketRateLimit extends AbstractRateLimiter {
             lock.unlock();
         }
     }
-    
+
     /**
      * 获取当前漏桶水量
+     * 
      * @return 当前水量
      */
     public double getCurrentWater() {
@@ -130,19 +131,20 @@ public class LeakyBucketRateLimit extends AbstractRateLimiter {
             // 先漏水再返回当前水量
             Instant now = Instant.now();
             Duration elapsed = Duration.between(lastLeakTime, now);
-            
+
             double leaked = elapsed.toMillis() * (leakRatePerSecond / 1000.0);
             currentWater = Math.max(0, currentWater - leaked);
             lastLeakTime = now;
-            
+
             return currentWater;
         } finally {
             lock.unlock();
         }
     }
-    
+
     /**
      * 获取漏桶容量
+     * 
      * @return 漏桶容量
      */
     public int getCapacity() {

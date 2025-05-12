@@ -1,7 +1,7 @@
 /*
  * @Author: weihua hu
  * @Date: 2025-04-10 02:02:09
- * @LastEditTime: 2025-04-15 00:13:03
+ * @LastEditTime: 2025-04-25 16:52:45
  * @LastEditors: weihua hu
  * @Description: 
  */
@@ -44,7 +44,6 @@ public class RoundRobinLoadBalance extends AbstractLoadBalance {
             }
             return invokers.get(index);
         }
-
         // 修正计数器，避免溢出
         if (counter.get() > 10000) {
             counter.set(0);

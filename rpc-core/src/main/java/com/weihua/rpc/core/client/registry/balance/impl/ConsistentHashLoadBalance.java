@@ -10,6 +10,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
 
 /**
  * 一致性哈希负载均衡实现
@@ -25,15 +26,31 @@ public class ConsistentHashLoadBalance extends AbstractLoadBalance {
         String serviceName = request.getInterfaceName();
         String methodName = request.getMethodName();
 
-        // 用于区分不同服务+方法+参数类型的选择器
+        // 用于区分不同服务+方法的选择器
         String key = serviceName + "." + methodName;
-        int identityHashCode = System.identityHashCode(invokers);
 
-        // 检查是否需要创建新的选择器
+        // 如果没有可用的服务提供者，清理对应的选择器并返回null
+        if (invokers == null || invokers.isEmpty()) {
+            // 清理不再需要的选择器
+            ConsistentHashSelector removed = selectors.remove(key);
+            if (removed != null) {
+                log.debug("服务无可用提供者，移除哈希选择器: 服务={}, 方法={}", serviceName, methodName);
+            }
+            return null;
+        }
+
+        // 检查是否需要创建或更新选择器
         ConsistentHashSelector selector = selectors.get(key);
-        if (selector == null || selector.identityHashCode != identityHashCode) {
-            selectors.put(key, new ConsistentHashSelector(invokers, 160, identityHashCode));
+        if (selector == null) {
+            // 首次创建选择器
+            log.debug("首次创建一致性哈希选择器: 服务={}, 方法={}, 提供者数量={}",
+                    serviceName, methodName, invokers.size());
+            selectors.put(key, new ConsistentHashSelector(invokers, 160));
             selector = selectors.get(key);
+        } else {
+            // 检查是否有节点变化，有则进行增量更新
+            // 如果所有节点都下线，updateInvokers方法中会清空内部数据
+            selector.updateInvokers(invokers);
         }
 
         // 生成请求的哈希键，用于选择节点
@@ -75,30 +92,116 @@ public class ConsistentHashLoadBalance extends AbstractLoadBalance {
     private static class ConsistentHashSelector {
         // 虚拟节点到真实节点的映射
         private final TreeMap<Long, Invoker> virtualNodes = new TreeMap<>();
-        private final int identityHashCode;
+        // 记录当前的invokers集合，用于检测变化
+        private Set<String> invokerAddresses;
+        // 每个真实节点对应的虚拟节点数
+        private final int virtualNodesNum;
 
         /**
          * 构造函数
          *
-         * @param invokers         调用者列表
-         * @param virtualNodesNum  每个调用者的虚拟节点数
-         * @param identityHashCode 调用者列表的标识哈希码
+         * @param invokers        调用者列表
+         * @param virtualNodesNum 每个调用者的虚拟节点数
          */
-        ConsistentHashSelector(List<Invoker> invokers, int virtualNodesNum, int identityHashCode) {
-            this.identityHashCode = identityHashCode;
+        ConsistentHashSelector(List<Invoker> invokers, int virtualNodesNum) {
+            this.virtualNodesNum = virtualNodesNum;
+            this.invokerAddresses = getInvokerAddresses(invokers);
 
+            // 初始化所有invoker的虚拟节点
             for (Invoker invoker : invokers) {
-                // 每个调用者对应多个虚拟节点
-                for (int i = 0; i < virtualNodesNum; i++) {
-                    // 生成虚拟节点的哈希值
-                    String nodeKey = invoker.getAddress().toString() + "#" + i;
-                    byte[] digest = md5(nodeKey);
+                addInvokerVirtualNodes(invoker);
+            }
+        }
 
-                    // 将16字节的MD5值拆分为4个部分，各自存储为一个虚拟节点
-                    for (int h = 0; h < 4; h++) {
-                        long hash = hash(digest, h);
-                        virtualNodes.put(hash, invoker);
+        /**
+         * 更新invokers列表，只处理变更的节点
+         */
+        public void updateInvokers(List<Invoker> newInvokers) {
+
+            // 如果新列表为空，清空所有节点并返回
+            if (newInvokers == null || newInvokers.isEmpty()) {
+                log.debug("所有服务提供者已下线，清空哈希环");
+                virtualNodes.clear();
+                invokerAddresses = Collections.emptySet();
+                return;
+            }
+
+            Set<String> newAddresses = getInvokerAddresses(newInvokers);
+
+            // 如果地址集合完全相同，无需更新
+            if (newAddresses.equals(invokerAddresses)) {
+                return;
+            }
+
+            // 找出新增的节点
+            Set<String> addedAddresses = new HashSet<>(newAddresses);
+            addedAddresses.removeAll(invokerAddresses);
+
+            // 找出移除的节点
+            Set<String> removedAddresses = new HashSet<>(invokerAddresses);
+            removedAddresses.removeAll(newAddresses);
+
+            // 处理节点变化
+            if (!addedAddresses.isEmpty() || !removedAddresses.isEmpty()) {
+                log.debug("检测到服务提供者变化: 新增={}, 移除={}", addedAddresses.size(), removedAddresses.size());
+
+                // 添加新节点的虚拟节点
+                for (Invoker invoker : newInvokers) {
+                    if (addedAddresses.contains(invoker.getAddress().toString())) {
+                        addInvokerVirtualNodes(invoker);
                     }
+                }
+
+                // 移除已删除节点的虚拟节点
+                if (!removedAddresses.isEmpty()) {
+                    removeInvokerVirtualNodes(removedAddresses);
+                }
+
+                // 更新当前的地址集合
+                this.invokerAddresses = newAddresses;
+            }
+        }
+
+        /**
+         * 将invokers列表转换为地址集合
+         */
+        private Set<String> getInvokerAddresses(List<Invoker> invokers) {
+            return invokers.stream()
+                    .map(invoker -> invoker.getAddress().toString())
+                    .collect(Collectors.toSet());
+        }
+
+        /**
+         * 为单个invoker添加虚拟节点
+         */
+        private void addInvokerVirtualNodes(Invoker invoker) {
+            String address = invoker.getAddress().toString();
+
+            // 为该invoker创建virtualNodesNum个虚拟节点
+            for (int i = 0; i < virtualNodesNum; i++) {
+                String nodeKey = address + "#" + i;
+                byte[] digest = md5(nodeKey);
+
+                // 一个MD5生成4个虚拟节点
+                for (int h = 0; h < 4; h++) {
+                    long hash = hash(digest, h);
+                    virtualNodes.put(hash, invoker);
+                }
+            }
+        }
+
+        /**
+         * 移除指定地址的所有虚拟节点
+         */
+        private void removeInvokerVirtualNodes(Set<String> addresses) {
+            // 遍历所有虚拟节点，移除匹配的节点
+            // 使用迭代器安全地移除元素
+            Iterator<Map.Entry<Long, Invoker>> it = virtualNodes.entrySet().iterator();
+            while (it.hasNext()) {
+                Map.Entry<Long, Invoker> entry = it.next();
+                String nodeAddress = entry.getValue().getAddress().toString();
+                if (addresses.contains(nodeAddress)) {
+                    it.remove();
                 }
             }
         }
